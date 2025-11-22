@@ -1,0 +1,105 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/26.2.2 Chrome/134.0.6998.178 Electron/35.1.2 Safari/537.36" version="26.2.2">
+  <diagram name="Página-1" id="x7Smpziqh3au8DuGQedi">
+    <mxGraphModel dx="1428" dy="841" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-16" value="" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=11;fillColor=#fff2cc;strokeColor=#d6b656;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="220.5" y="597" width="149.5" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-1" value="&lt;b&gt;IDLE&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" parent="1" vertex="1">
+          <mxGeometry x="250" y="285" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-3" value="&lt;b&gt;PUSH&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" parent="1" vertex="1">
+          <mxGeometry x="250" y="485" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-9" value="" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;curved=1;" parent="1" source="Hqd2NCUbn2LUp30KCKR9-1" target="Hqd2NCUbn2LUp30KCKR9-3" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="350" y="355" as="sourcePoint" />
+            <mxPoint x="400" y="305" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="350" y="425" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-10" value="" style="endArrow=classic;html=1;rounded=0;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;curved=1;" parent="1" source="Hqd2NCUbn2LUp30KCKR9-3" target="Hqd2NCUbn2LUp30KCKR9-1" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="310" y="435" as="sourcePoint" />
+            <mxPoint x="360" y="385" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="230" y="425" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-12" value="push fsm" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=130;height=27;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=0;" parent="1" vertex="1">
+          <mxGeometry x="150" y="213" width="300" height="467" as="geometry" />
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-13" value="&lt;font style=&quot;font-size: 11px;&quot; face=&quot;Verdana&quot;&gt;&lt;b&gt;tis &amp;gt; timeout&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+          <mxGeometry x="332" y="405" width="100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-14" value="&lt;font face=&quot;Verdana&quot;&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;&lt;b&gt;done&lt;/b&gt;&lt;/span&gt;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+          <mxGeometry x="199" y="405" width="50" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-18" value="&lt;b&gt;IDLE&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" parent="1" vertex="1">
+          <mxGeometry x="628" y="281" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-19" value="&lt;b&gt;UPDATE&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" parent="1" vertex="1">
+          <mxGeometry x="628" y="481" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-20" value="" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;curved=1;" parent="1" source="Hqd2NCUbn2LUp30KCKR9-18" target="Hqd2NCUbn2LUp30KCKR9-19" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="728" y="351" as="sourcePoint" />
+            <mxPoint x="778" y="301" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="728" y="421" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-21" value="" style="endArrow=classic;html=1;rounded=0;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;curved=1;" parent="1" source="Hqd2NCUbn2LUp30KCKR9-19" target="Hqd2NCUbn2LUp30KCKR9-18" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="688" y="431" as="sourcePoint" />
+            <mxPoint x="738" y="381" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="608" y="421" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-22" value="update fsm" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=130;height=27;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=0;" parent="1" vertex="1">
+          <mxGeometry x="510" y="213" width="390" height="467" as="geometry" />
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-23" value="&lt;b&gt;&lt;font face=&quot;Verdana&quot;&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;msg received&lt;br&gt;AND&amp;nbsp;&lt;br&gt;&lt;/font&gt;&lt;span style=&quot;color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); text-align: left; background-color: transparent;&quot;&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;received_msg.time_stamp&lt;/font&gt;&lt;/span&gt;&lt;/font&gt;&lt;/b&gt;&lt;div&gt;&lt;span style=&quot;color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); text-align: left; background-color: transparent;&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size: 11px;&quot; face=&quot;Verdana&quot;&gt;&amp;nbsp;&amp;gt;&amp;nbsp;&lt;/font&gt;&lt;/b&gt;&lt;/span&gt;&lt;div&gt;&lt;b&gt;&lt;font style=&quot;font-size: 11px;&quot; face=&quot;Verdana&quot;&gt;&lt;span style=&quot;text-align: left;&quot;&gt;current&lt;/span&gt;&lt;span style=&quot;color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); text-align: left; background-color: transparent;&quot;&gt;.time_stamp&lt;/span&gt;&lt;/font&gt;&lt;/b&gt;&lt;font style=&quot;font-size: 11px;&quot; face=&quot;Verdana&quot;&gt;&lt;b&gt;&lt;/b&gt;&lt;/font&gt;&lt;/div&gt;&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+          <mxGeometry x="703" y="370" width="190" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-24" value="&lt;font&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;&lt;b&gt;done&lt;/b&gt;&lt;/span&gt;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Verdana;" parent="1" vertex="1">
+          <mxGeometry x="577" y="401" width="50" height="30" as="geometry" />
+        </mxCell>
+        <UserObject label="&lt;font face=&quot;Verdana&quot; style=&quot;forced-color-adjust: none; color: rgb(0, 0, 0); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: left; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: nowrap; background-color: rgb(236, 236, 236); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; font-size: 9px;&quot;&gt;&lt;div style=&quot;forced-color-adjust: none;&quot;&gt;msg = build_push_msg();&lt;/div&gt;&lt;div style=&quot;forced-color-adjust: none;&quot;&gt;dest = rand(neighbours);&lt;/div&gt;&lt;div style=&quot;forced-color-adjust: none;&quot;&gt;send_msg(dest, msg);&lt;/div&gt;&lt;/font&gt;" link="&lt;font face=&quot;Verdana&quot; style=&quot;forced-color-adjust: none; color: rgb(0, 0, 0); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: left; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: nowrap; background-color: rgb(236, 236, 236); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; font-size: 9px;&quot;&gt;&lt;div style=&quot;forced-color-adjust: none;&quot;&gt;&lt;br class=&quot;Apple-interchange-newline&quot;&gt;current = node_instance[received_msg.subject];&lt;/div&gt;&lt;div style=&quot;forced-color-adjust: none; font-weight: bold;&quot;&gt;&lt;b style=&quot;forced-color-adjust: none; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;if&amp;nbsp;&lt;/b&gt;&lt;span style=&quot;forced-color-adjust: none; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;(received_msg.time_stamp &amp;gt;&amp;nbsp;&lt;/span&gt;&lt;span style=&quot;forced-color-adjust: none; font-weight: 400;&quot;&gt;current&lt;/span&gt;&lt;span style=&quot;forced-color-adjust: none; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;.time_stamp)&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;forced-color-adjust: none; font-weight: bold;&quot;&gt;&lt;span style=&quot;forced-color-adjust: none; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; current.value = received_msg.value;&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;forced-color-adjust: none; font-weight: bold;&quot;&gt;&lt;span style=&quot;forced-color-adjust: none; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; current.time_stamp =&amp;nbsp;&lt;/span&gt;&lt;span style=&quot;forced-color-adjust: none; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;received_msg.time_stamp;&lt;/span&gt;&lt;span style=&quot;forced-color-adjust: none; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;forced-color-adjust: none; font-weight: bold;&quot;&gt;&lt;span style=&quot;forced-color-adjust: none; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; current.state = infected;&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;forced-color-adjust: none; font-weight: bold;&quot;&gt;&lt;span style=&quot;forced-color-adjust: none; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;&lt;span&gt;&amp;nbsp;&lt;/span&gt;&lt;/span&gt;&lt;span style=&quot;forced-color-adjust: none; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;node_instance[received_msg.subject] =&amp;nbsp;&lt;/span&gt;&lt;span style=&quot;forced-color-adjust: none; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;current&lt;/span&gt;&lt;span style=&quot;forced-color-adjust: none; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;&amp;nbsp;&lt;/span&gt;&lt;span style=&quot;forced-color-adjust: none; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;;&lt;/span&gt;&lt;/div&gt;&lt;/font&gt;&lt;br class=&quot;Apple-interchange-newline&quot;&gt;" id="Hqd2NCUbn2LUp30KCKR9-26">
+          <mxCell style="text;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+            <mxGeometry x="229.5" y="597" width="120" height="45" as="geometry" />
+          </mxCell>
+        </UserObject>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-28" value="" style="endArrow=none;dashed=1;html=1;rounded=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="Hqd2NCUbn2LUp30KCKR9-3" target="Hqd2NCUbn2LUp30KCKR9-26" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="320" y="550" as="sourcePoint" />
+            <mxPoint x="370" y="500" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-29" value="" style="endArrow=none;dashed=1;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="666.72" y="561" as="sourcePoint" />
+            <mxPoint x="667" y="580" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-30" value="&lt;b&gt;Thread 1&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+          <mxGeometry x="260" y="183" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-31" value="&lt;b&gt;Thread 2&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+          <mxGeometry x="652" y="183" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="Hqd2NCUbn2LUp30KCKR9-32" value="&lt;div style=&quot;font-family: Verdana; font-size: 9px; text-align: left; text-wrap-mode: nowrap; font-weight: bold;&quot;&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; curr.value = received_msg.value;&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;font-family: Verdana; font-size: 9px; text-align: left; text-wrap-mode: nowrap; font-weight: bold;&quot;&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;&amp;nbsp;&lt;/span&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;curr&lt;/span&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;.time_stamp =&amp;nbsp;&lt;/span&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;received_msg.time_stamp;&lt;/span&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;font-family: Verdana; font-size: 9px; text-align: left; text-wrap-mode: nowrap; font-weight: bold;&quot;&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;&amp;nbsp;&lt;/span&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;curr&lt;/span&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-weight: normal;&quot;&gt;.state = infected;&lt;/span&gt;&lt;/div&gt;" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=11;fillColor=#fff2cc;strokeColor=#d6b656;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="553" y="580" width="230" height="50" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
