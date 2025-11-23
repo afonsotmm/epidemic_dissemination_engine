@@ -1,4 +1,4 @@
-package logic;
+package epidemic_core.node.general;
 
 public class Address {
 
