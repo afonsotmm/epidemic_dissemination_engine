@@ -1,7 +1,8 @@
-package epidemic_core.node.general;
+package epidemic_core.node;
 
 import epidemic_core.message.Message;
 import epidemic_core.node.msg_related.StatusForMessage;
+import general.communication.Address;
 
 import java.util.Map;
 import java.util.List;

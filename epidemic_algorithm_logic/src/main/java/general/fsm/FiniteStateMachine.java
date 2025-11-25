@@ -1,4 +1,4 @@
-package epidemic_core.util;
+package general.fsm;
 
 import java.time.Duration;
 import java.time.Instant;

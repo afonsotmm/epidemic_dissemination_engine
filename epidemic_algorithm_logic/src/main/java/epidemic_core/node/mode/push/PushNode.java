@@ -1,10 +1,10 @@
 package epidemic_core.node.mode.push;
 
-import epidemic_core.node.general.Address;
+import general.communication.Address;
 import epidemic_core.node.mode.push.fsm.PushStates;
 import epidemic_core.node.mode.push.fsm.UpdateStates;
-import epidemic_core.node.general.Node;
-import epidemic_core.util.FiniteStateMachine;
+import epidemic_core.node.Node;
+import general.fsm.FiniteStateMachine;
 
 import java.util.List;
 import java.util.Map;

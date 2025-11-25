@@ -1,4 +1,4 @@
-package epidemic_core.node.general;
+package general.communication;
 
 public class Address {
 

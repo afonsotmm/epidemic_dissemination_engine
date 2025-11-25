@@ -1,7 +1,7 @@
 package epidemic_core.node.mode.pull;
 
-import epidemic_core.node.general.Address;
-import epidemic_core.node.general.Node;
+import general.communication.Address;
+import epidemic_core.node.Node;
 
 import java.util.List;
 import java.util.Map;
