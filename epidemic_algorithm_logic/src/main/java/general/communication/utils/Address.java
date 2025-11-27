@@ -1,4 +1,4 @@
-package general.communication;
+package general.communication.utils;
 
 public class Address {
 

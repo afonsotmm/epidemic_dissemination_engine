@@ -1,6 +1,6 @@
 package epidemic_core.node.mode.pushpull;
 
-import general.communication.Address;
+import general.communication.utils.Address;
 import epidemic_core.node.Node;
 
 import java.util.List;
@@ -11,10 +11,9 @@ public class PushPullNode extends Node {
 
     public PushPullNode(Integer id,
                     List<Integer> neighbours,
-                    Map<Integer, Address> nodeIdToAddress,
-                    List<Map<String, SubjectState>> subjects) {
+                    Map<Integer, Address> nodeIdToAddress) {
 
-        super(id, neighbours, nodeIdToAddress, subjects);
+        super(id, neighbours, nodeIdToAddress);
 
     }
 }

@@ -1,43 +1,58 @@
 package epidemic_core.node.mode.push;
 
-import general.communication.Address;
+import epidemic_core.message.Message;
+import epidemic_core.message.MessageType;
+import general.communication.utils.Address;
 import epidemic_core.node.mode.push.fsm.PushStates;
 import epidemic_core.node.mode.push.fsm.UpdateStates;
 import epidemic_core.node.Node;
+
 import general.fsm.FiniteStateMachine;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+// =================================================================
+//                     Guide to use this class
+// =================================================================
+// 1. PushNode node = new PushNode(id, neighbours, nodeIdToAddress);
+// 2. node.startRunning();
+// =================================================================
 
 public class PushNode extends Node {
 
-    private double pushInterval;
+    private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
-    // pushFsm
-    FiniteStateMachine<PushStates> pushFsm = new FiniteStateMachine<>(PushStates.IDLE);
-
-    // updateFsm
-    FiniteStateMachine<UpdateStates> updateFsm = new FiniteStateMachine<>(UpdateStates.IDLE);
+    public static final double RUNNING_INTERVAL = 50;
+    public static final double PUSH_INTERVAL = 5000;
 
     // Constructor
     public PushNode(Integer id,
                     List<Integer> neighbours,
-                    Map<Integer, Address> nodeIdToAddress,
-                    List<Map<String, SubjectState>> subjects) {
+                    String assignedSubjectAsSource,
+                    Map<Integer, Address> nodeIdToAddressTable,
+                    double pushInterval) {
 
-        super(id, neighbours, nodeIdToAddress, subjects);
-
+        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable);
     }
 
-    // Fsm Runners
-    public void runPushFsm() {
+    // ===========================================================
+    //                      PUSH FSM
+    // ===========================================================
+    FiniteStateMachine<PushStates> pushFsm = new FiniteStateMachine<>(PushStates.IDLE);
+
+    public void pushFsmLogic() {
 
         // Update time in state
         pushFsm.updateTis();
         PushStates currState = pushFsm.getState();
 
         // Transitions
-        if(currState == PushStates.IDLE && pushFsm.checkTimeout(pushInterval)) {
+        if(currState == PushStates.IDLE && pushFsm.checkTimeout(PUSH_INTERVAL)) {
             pushFsm.setNewState(PushStates.PUSH);
         }
 
@@ -50,24 +65,46 @@ public class PushNode extends Node {
 
         // Compute actions
         if(pushFsm.getState() == PushStates.PUSH) {
-            // build msg;
-            // destination = rand(neighbours);
-            // send_msg(dest, msg);
+
+            List<Message> storedMessages = getAllStoredMessages();
+
+            for(Message message : storedMessages) {
+                // Message Encoding
+                String stringMsg = message.encodeMessage(MessageType.REQUEST);
+                // Random Destinations Neighbour
+                Random rand  = new Random();
+                int randNeighId = rand.nextInt(getNeighbours().size());
+                Address randNeighAdd = getNeighbourAddress(randNeighId);
+                // Send Message
+                getCommunication().sendMessage(randNeighAdd, stringMsg);
+            }
         }
 
     }
 
-    public void runUpdateFsm() {
+    public void runPushFsm() {
+        scheduler.scheduleAtFixedRate(
+                this::pushFsmLogic,
+                0,
+                (long)RUNNING_INTERVAL,
+                TimeUnit.MILLISECONDS);
+    }
+
+    // ===========================================================
+    //                    UPDATE FSM
+    // ===========================================================
+    FiniteStateMachine<UpdateStates> updateFsm = new FiniteStateMachine<>(UpdateStates.IDLE);
+
+    public void updateFsmLogic() {
 
         // Update time in state
         updateFsm.updateTis();
 
         // Inputs and initial conditions
         UpdateStates currState = updateFsm.getState();
-        boolean msgReceived = false;
 
         // Transitions
-        if(currState == UpdateStates.IDLE && pushFsm.checkTimeout(pushInterval)) {
+        if(currState == UpdateStates.IDLE && updateFsm.checkTimeout(PUSH_INTERVAL)) {
             updateFsm.setNewState(UpdateStates.UPDATE);
         }
 
@@ -80,15 +117,25 @@ public class PushNode extends Node {
 
         // Compute actions
         if(updateFsm.getState() == UpdateStates.UPDATE) {
-            // build msg;
-            // destination = rand(neighbours);
-            // send_msg(dest, msg);
+            // TODO
         }
 
     }
 
+    public void runUpdateFsm() {
+        scheduler.scheduleAtFixedRate(
+                this::updateFsmLogic,
+                0,
+                (long)RUNNING_INTERVAL,
+                TimeUnit.MILLISECONDS);
+    }
 
-
-
+    // ===========================================================
+    //                        RUNNER
+    // ===========================================================
+    public void startRunning() {
+        runPushFsm();
+        runUpdateFsm();
+    }
 
 }
