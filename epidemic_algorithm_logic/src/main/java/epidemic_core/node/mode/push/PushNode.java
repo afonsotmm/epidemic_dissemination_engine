@@ -27,17 +27,22 @@ public class PushNode extends Node {
 
     private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
-    public static final double RUNNING_INTERVAL = 50;
-    public static final double PUSH_INTERVAL = 5000;
+    public static final double RUNNING_INTERVAL = 50; // milliseconds
+    private double pushInterval; // seconds
+
+    private volatile String auxMsg;
 
     // Constructor
     public PushNode(Integer id,
                     List<Integer> neighbours,
                     String assignedSubjectAsSource,
                     Map<Integer, Address> nodeIdToAddressTable,
-                    double pushInterval) {
+                    double pushInterval,
+                    Address supervisorAddress) {
 
-        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable);
+        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, supervisorAddress);
+        this.pushInterval = pushInterval;
+        auxMsg = null;
     }
 
     // ===========================================================
@@ -52,7 +57,7 @@ public class PushNode extends Node {
         PushStates currState = pushFsm.getState();
 
         // Transitions
-        if(currState == PushStates.IDLE && pushFsm.checkTimeout(PUSH_INTERVAL)) {
+        if(currState == PushStates.IDLE && pushFsm.checkTimeout(pushInterval)) {
             pushFsm.setNewState(PushStates.PUSH);
         }
 
@@ -67,16 +72,26 @@ public class PushNode extends Node {
         if(pushFsm.getState() == PushStates.PUSH) {
 
             List<Message> storedMessages = getAllStoredMessages();
+            List<Integer> neighbours = getNeighbours();
 
-            for(Message message : storedMessages) {
-                // Message Encoding
-                String stringMsg = message.encodeMessage(MessageType.REQUEST);
-                // Random Destinations Neighbour
-                Random rand  = new Random();
-                int randNeighId = rand.nextInt(getNeighbours().size());
-                Address randNeighAdd = getNeighbourAddress(randNeighId);
-                // Send Message
-                getCommunication().sendMessage(randNeighAdd, stringMsg);
+            // Only send if there are neighbours and stored messages
+            if (neighbours != null && !neighbours.isEmpty() && !storedMessages.isEmpty()) {
+                for(Message message : storedMessages) {
+                    // Message Encoding
+                    String stringMsg = message.encodeMessage(MessageType.REQUEST);
+                    // Random Destinations Neighbour
+                    Random rand = new Random();
+                    int randIndex = rand.nextInt(neighbours.size());
+                    Integer randNeighId = neighbours.get(randIndex);
+                    Address randNeighAdd = getNeighbourAddress(randNeighId);
+                    
+                    // Send Message only if address is valid
+                    if (randNeighAdd != null) {
+                        getCommunication().sendMessage(randNeighAdd, stringMsg);
+                    } else {
+                        System.err.println("Warning: Neighbour " + randNeighId + " address not found");
+                    }
+                }
             }
         }
 
@@ -104,7 +119,7 @@ public class PushNode extends Node {
         UpdateStates currState = updateFsm.getState();
 
         // Transitions
-        if(currState == UpdateStates.IDLE && updateFsm.checkTimeout(PUSH_INTERVAL)) {
+        if(currState == UpdateStates.IDLE && auxMsg != null) {
             updateFsm.setNewState(UpdateStates.UPDATE);
         }
 
@@ -116,8 +131,21 @@ public class PushNode extends Node {
         updateFsm.setState();
 
         // Compute actions
-        if(updateFsm.getState() == UpdateStates.UPDATE) {
-            // TODO
+        if(updateFsm.getState() == UpdateStates.IDLE) {
+            auxMsg = getCommunication().receiveMessage();
+        }
+        else if(updateFsm.getState() == UpdateStates.UPDATE) {
+            Message receivedMessage = Message.decodeMessage(auxMsg);
+            Boolean gotStored = storeOrIgnoreMessage(receivedMessage);
+            
+            if (gotStored) {
+                // Log will be printed in storeOrIgnoreMessage
+            } else {
+                System.out.println("[Node " + getId() + "] Ignored message - subject '" + 
+                        receivedMessage.getSubject() + "' (older timestamp)");
+            }
+
+            auxMsg = null;
         }
 
     }

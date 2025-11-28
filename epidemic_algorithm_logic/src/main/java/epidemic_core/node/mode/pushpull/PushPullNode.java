@@ -11,9 +11,11 @@ public class PushPullNode extends Node {
 
     public PushPullNode(Integer id,
                     List<Integer> neighbours,
-                    Map<Integer, Address> nodeIdToAddress) {
+                    String assignedSubjectAsSource,
+                    Map<Integer, Address> nodeIdToAddressTable,
+                    Address supervisorAddress) {
 
-        super(id, neighbours, nodeIdToAddress);
+        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, supervisorAddress);
 
     }
 }

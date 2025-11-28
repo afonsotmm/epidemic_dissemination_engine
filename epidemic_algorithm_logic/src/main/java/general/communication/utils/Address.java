@@ -3,16 +3,16 @@ package general.communication.utils;
 public class Address {
 
     private final String ip;
-    private final Integer port;
+    private final int port;
 
     // Constructor
-    public Address(String ip, Integer port) {
+    public Address(String ip, int port) {
         this.ip = ip;
         this.port = port;
     }
 
     // Getters
     public String getIp() { return ip; }
-    public Integer getPort() { return port; }
+    public int getPort() { return port; }
 
 }

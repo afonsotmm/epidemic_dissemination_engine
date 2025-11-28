@@ -3,6 +3,7 @@ package general.communication;
 import general.communication.utils.Address;
 
 public interface Communication {
+
     // Socket configuration
     void startListening(Address myAddress);
 
@@ -11,4 +12,7 @@ public interface Communication {
 
     // Receive the message (blocks until it receives)
     String receiveMessage();
+
+    // Closes the socket
+    void closeSocket();
 }

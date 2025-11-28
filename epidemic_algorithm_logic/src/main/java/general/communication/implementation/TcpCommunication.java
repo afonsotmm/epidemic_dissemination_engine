@@ -5,9 +5,15 @@ import general.communication.utils.Address;
 
 public class TcpCommunication implements Communication {
 
-    void startListening(Address myAddress) {}
+    @Override
+    public void startListening(Address myAddress) {}
 
-    void sendMessage(Address destination, String message) {}
+    @Override
+    public void sendMessage(Address destination, String message) {}
 
-    String receiveMessage() { return null; }
+    @Override
+    public String receiveMessage() { return null; }
+
+    @Override
+    public void closeSocket() {}
 }

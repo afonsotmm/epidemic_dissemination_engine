@@ -17,6 +17,12 @@ public class Message {
         this.data = data;
     }
 
+    public Message() {
+        this.subject = null;
+        this.timeStamp = -1;
+        this.data = null;
+    }
+
     // Getters
     public String getSubject() { return subject; }
     public Integer getTimeStamp() { return timeStamp; }
