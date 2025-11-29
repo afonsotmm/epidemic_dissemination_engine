@@ -76,21 +76,24 @@ public class PushNode extends Node {
 
             // Only send if there are neighbours and stored messages
             if (neighbours != null && !neighbours.isEmpty() && !storedMessages.isEmpty()) {
-                for(Message message : storedMessages) {
-                    // Message Encoding
-                    String stringMsg = message.encodeMessage(MessageType.REQUEST);
-                    // Random Destinations Neighbour
-                    Random rand = new Random();
-                    int randIndex = rand.nextInt(neighbours.size());
-                    Integer randNeighId = neighbours.get(randIndex);
-                    Address randNeighAdd = getNeighbourAddress(randNeighId);
-                    
-                    // Send Message only if address is valid
-                    if (randNeighAdd != null) {
-                        getCommunication().sendMessage(randNeighAdd, stringMsg);
-                    } else {
-                        System.err.println("Warning: Neighbour " + randNeighId + " address not found");
-                    }
+                // Send a random message to a random neighbour
+                Random rand = new Random();
+                
+                // Pick a random message
+                int randMsgIndex = rand.nextInt(storedMessages.size());
+                Message message = storedMessages.get(randMsgIndex);
+                String stringMsg = message.encodeMessage(MessageType.REQUEST);
+                
+                // Pick a random neighbour
+                int randNeighIndex = rand.nextInt(neighbours.size());
+                Integer randNeighId = neighbours.get(randNeighIndex);
+                Address randNeighAdd = getNeighbourAddress(randNeighId);
+                
+                // Send Message only if address is valid
+                if (randNeighAdd != null) {
+                    getCommunication().sendMessage(randNeighAdd, stringMsg);
+                } else {
+                    System.err.println("Warning: Neighbour " + randNeighId + " address not found");
                 }
             }
         }

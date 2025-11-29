@@ -43,4 +43,9 @@ public class Message {
         return new Message(parts[1], Integer.parseInt(parts[2]), parts[3]);
     }
 
+    public static String getMessageHeader(String message) {
+        String[] parts = message.split(";");
+        return parts[0];
+    }
+
 }
