@@ -1,13 +1,13 @@
-package src.main.java.supervisor;
-package general.communication.utils;
+package supervisor;
 
 import java.util.*;
+import general.communication.utils.Address;
 
-public class nodeIdToAddressTable
+public class NodeIdToAddressTable
 {
     private final Map<Integer, Address> table;
 
-    public nodeIdToAddressTable(int N) {
+    public NodeIdToAddressTable(int N) {
         this.table = new HashMap<>();
 
         for (int id = 0; id < N; id++) {
@@ -23,5 +23,8 @@ public class nodeIdToAddressTable
 
     public Map<Integer, Address> getAll() {
         return table;
+    }
+
+    public void put(int i, Address localhost) {
     }
 }
