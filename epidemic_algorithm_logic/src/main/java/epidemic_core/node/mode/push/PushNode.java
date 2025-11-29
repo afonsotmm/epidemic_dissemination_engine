@@ -8,6 +8,7 @@ import epidemic_core.node.mode.push.fsm.UpdateStates;
 import epidemic_core.node.Node;
 
 import general.fsm.FiniteStateMachine;
+import supervisor.NodeIdToAddressTable;
 
 import java.util.List;
 import java.util.Map;
@@ -36,7 +37,7 @@ public class PushNode extends Node {
     public PushNode(Integer id,
                     List<Integer> neighbours,
                     String assignedSubjectAsSource,
-                    Map<Integer, Address> nodeIdToAddressTable,
+                    NodeIdToAddressTable nodeIdToAddressTable,
                     double pushInterval,
                     Address supervisorAddress) {
 

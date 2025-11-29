@@ -9,6 +9,7 @@ import general.communication.Communication;
 import general.communication.implementation.TcpCommunication;
 import general.communication.implementation.UdpCommunication;
 import general.communication.utils.Address;
+import supervisor.NodeIdToAddressTable;
 
 import java.util.ArrayList;
 import java.util.Map;
@@ -23,7 +24,7 @@ public class Node {
     private Integer id;
     private List<Integer> neighbours;
     private String assignedSubjectAsSource; // e.g: "temperature"; "none" (if it's not source of any msg) etc
-    private Map<Integer, Address> nodeIdToAddressTable; // also includes the supervisor address
+    private NodeIdToAddressTable nodeIdToAddressTable; // also includes the supervisor address
     private Address supervisorAddress;
     private Communication communication;
 
@@ -34,7 +35,7 @@ public class Node {
     public Node(Integer id,
                 List<Integer> neighbours,
                 String assignedSubjectAsSource,
-                Map<Integer, Address> nodeIdToAddressTable,
+                NodeIdToAddressTable nodeIdToAddressTable,
                 Address supervisorAddress) {
         this.id = id;
         this.neighbours = neighbours;
