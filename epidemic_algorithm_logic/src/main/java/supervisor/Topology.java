@@ -1,25 +1,29 @@
-package src.main.java.supervisor;
+package supervisor;
+
+import general.communication.utils.Address;
+import supervisor.TopologyType;
 
 import java.util.*;
 import java.util.HashMap;
 
 public class Topology {
 
+    private Map<Integer, List<Integer>> adjMap;
+
     // private Integer n; // number of nodes
-    public static Map<Integer, List<Integer>> createTopology(String type, Integer N, Integer k) // type of topology chosen and number of nodes
+    public Map<Integer, List<Integer>> createTopology(TopologyType type, Integer N) // type of topology chosen and number of nodes
     {
-        return switch (type.toLowerCase()) {
-            case "full mesh" -> createMesh(N);
-            case "partial mesh" -> createPartialMesh(N);
-            case "ring" -> createRing(N);
-            case "star" -> createStar(N);
-            default -> throw new IllegalStateException("Unexpected value: " + type.toLowerCase());
+        return switch (type) {
+            case FULL_MESH -> createMesh(N);
+            case PARTIAL_MESH -> createPartialMesh(N);
+            case RING -> createRing(N);
+            case STAR -> createStar(N);
         };
     }
 
     // ========== Mesh Topology ==========
-    private static Map<Integer, List<Integer>> createMesh(Integer N) {
-        Map<Integer, List<Integer>> adjMap = new HashMap<>();
+    private Map<Integer, List<Integer>> createMesh(Integer N) {
+        adjMap = new HashMap<>();
 
         for (int i = 0; i < N; i++) { // add neighbours
             List<Integer> neighbours = new ArrayList<>();
@@ -34,8 +38,8 @@ public class Topology {
     }
 
     // ========== Partial Mesh Topology ==========
-    private static Map<Integer, List<Integer>> createPartialMesh(int N) {
-        Map<Integer, List<Integer>> adjMap = new HashMap<>();
+    private Map<Integer, List<Integer>> createPartialMesh(int N) {
+        adjMap = new HashMap<>();
         Random random = new Random();
 
         for (int i = 0; i < N; i++) {
@@ -53,13 +57,12 @@ public class Topology {
                 }
             }
         }
-
         return adjMap;
     }
 
     // ========== Ring Topology ==========
-    private static Map<Integer, List<Integer>> createRing(Integer N) {
-        Map<Integer, List<Integer>> adjMap = new HashMap<>();
+    private Map<Integer, List<Integer>> createRing(Integer N) {
+        adjMap = new HashMap<>();
 
         for (int i = 0; i < N; i++) {
             List<Integer> neighbours = new ArrayList<>();
@@ -72,13 +75,12 @@ public class Topology {
 
             adjMap.put(i, neighbours);
         }
-
         return adjMap;
     }
 
     // ========== Star Topology ==========
-    private static Map<Integer, List<Integer>> createStar(Integer N) {
-        Map<Integer, List<Integer>> adjMap = new HashMap<>();
+    private Map<Integer, List<Integer>> createStar(Integer N) {
+        adjMap = new HashMap<>();
 
         for (int i = 0; i < N; i++) {
             List<Integer> neighbours = new ArrayList<>();
@@ -92,11 +94,15 @@ public class Topology {
 
             adjMap.put(i, neighbours);
         }
-
         return adjMap;
     }
 
+    public List<Integer> get(int nodeId) {
+        return adjMap.get(nodeId);
+    }
 
-
+    public Map<Integer, List<Integer>> getAll() {
+        return adjMap;
+    }
 
 }
