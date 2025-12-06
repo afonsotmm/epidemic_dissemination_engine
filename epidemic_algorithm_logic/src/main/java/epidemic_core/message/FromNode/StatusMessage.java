@@ -1,4 +1,4 @@
-package epidemic_core.message;
+package epidemic_core.message.FromNode;
 
 public class StatusMessage {
     private Integer id;
