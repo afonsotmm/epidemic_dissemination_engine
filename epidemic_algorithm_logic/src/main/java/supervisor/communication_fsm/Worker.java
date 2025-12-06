@@ -1,11 +1,10 @@
 package supervisor.communication_fsm;
 
-import epidemic_core.node.mode.push.fsm.PushStates;
 import general.fsm.FiniteStateMachine;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class CommsFSM {
+public class Worker {
     FiniteStateMachine<CommsStates> generalFsm = new FiniteStateMachine<>(CommsStates.IDLE);
     BlockingQueue<String> nodeBuffer = new LinkedBlockingQueue<>();
     BlockingQueue<String> uiBuffer = new LinkedBlockingQueue<>();
@@ -18,32 +17,32 @@ public class CommsFSM {
 
         // Transitions
         if(currState == CommsStates.IDLE && !uiBuffer.isEmpty()) {
-            generalFsm.setNewState(CommsStates.UI_OPS);
+            generalFsm.setNewState(CommsStates.CONTROL);
         }
 
         else if(currState == CommsStates.IDLE && uiBuffer.isEmpty() && !nodeBuffer.isEmpty()) {
-            generalFsm.setNewState(CommsStates.NODE_OPS);
+            generalFsm.setNewState(CommsStates.MONITOR);
         }
 
         // Set state
         generalFsm.setState();
 
         // Compute actions
-        if(generalFsm.getState() == CommsStates.NODE_OPS) {
-            commsWithNodes();
+        if(generalFsm.getState() == CommsStates.MONITOR) {
+            manageNodeMessages();
         }
 
-        else if(generalFsm.getState() == CommsStates.UI_OPS) {
-            commsWithUi();
+        else if(generalFsm.getState() == CommsStates.CONTROL) {
+            manageUiMessages();
         }
 
     }
 
-    public void commsWithNodes(){
+    public void manageNodeMessages(){
 
     }
 
-    public void commsWithUi(){
+    public void manageUiMessages(){
 
     }
 }
