@@ -1,18 +1,20 @@
-package supervisor;
+package supervisor.network_emulation;
 
 import epidemic_core.node.mode.NodeMode;
 import epidemic_core.node.mode.pull.PullNode;
 import epidemic_core.node.mode.push.PushNode;
 import epidemic_core.node.mode.pushpull.PushPullNode;
 import general.communication.utils.Address;
-import supervisor.create_topology.Topology;
-import supervisor.create_topology.TopologyType;
+import supervisor.network_emulation.topology_creation.Topology;
+import supervisor.network_emulation.topology_creation.TopologyType;
+import supervisor.network_emulation.utils.NodeIdToAddressTable;
+import supervisor.network_emulation.utils.Subjects;
 
 import java.util.*;
 
 public class NetworkEmulator {
 
-    private final Address supervisorAddr = new Address("127.0.0.1", 7000);
+    private final Address supervisorAddr = new Address("127.0.0.0", 7000);
     private final double pushInterval = 2;
 
     public void initializeNetwork(int N, int sourceNodes, String topologyType, String modeType)
