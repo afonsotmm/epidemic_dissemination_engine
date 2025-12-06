@@ -1,4 +1,4 @@
-package supervisor;
+package supervisor.network_emulation.utils;
 
 import java.util.*;
 import general.communication.utils.Address;
@@ -15,9 +15,9 @@ public class NodeIdToAddressTable
         for (int id = 0; id < N; id++) {
             String ip;
             do {
-                int b = random.nextInt(256);
-                int c = random.nextInt(256);
-                int d = random.nextInt(256);
+                int b = random.nextInt(0, 256);
+                int c = random.nextInt(0, 256);
+                int d = random.nextInt(1, 256);
                 ip = "127." + b + "." + c + "." + d;
             } while (usedIps.contains(ip));
 

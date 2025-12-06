@@ -1,4 +1,4 @@
-package supervisor;
+package supervisor.network_emulation.utils;
 
 public enum Subjects {
     TEMPERATURE,

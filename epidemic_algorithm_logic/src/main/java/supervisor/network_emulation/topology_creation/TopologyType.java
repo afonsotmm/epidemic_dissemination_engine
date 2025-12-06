@@ -1,4 +1,4 @@
-package supervisor.create_topology;
+package supervisor.network_emulation.topology_creation;
 
 public enum TopologyType
 {
