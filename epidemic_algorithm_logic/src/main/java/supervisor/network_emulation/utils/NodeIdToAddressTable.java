@@ -9,10 +9,21 @@ public class NodeIdToAddressTable
 
     public NodeIdToAddressTable(int N) {
         this.table = new HashMap<>();
+        Set<String> usedIps = new HashSet<>();
+        Random random = new Random();
 
         for (int id = 0; id < N; id++) {
-            String ip = "127.0.0.1";     // localhost
-            int port = 8000 + id;        // port
+            String ip;
+            do {
+                int b = random.nextInt(256);
+                int c = random.nextInt(256);
+                int d = random.nextInt(256);
+                ip = "127." + b + "." + c + "." + d;
+            } while (usedIps.contains(ip));
+
+            usedIps.add(ip);
+
+            int port = 8000;
             table.put(id, new Address(ip, port));
         }
     }

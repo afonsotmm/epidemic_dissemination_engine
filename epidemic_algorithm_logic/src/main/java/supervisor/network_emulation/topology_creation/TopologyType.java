@@ -1,4 +1,4 @@
-package supervisor;
+package supervisor.create_topology;
 
 public enum TopologyType
 {
