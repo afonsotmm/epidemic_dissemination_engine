@@ -3,10 +3,8 @@ package epidemic_core.node;
 import epidemic_core.message.Message;
 import epidemic_core.message.MessageType;
 import epidemic_core.node.msg_related.NodeRole;
-import epidemic_core.node.msg_related.NodeStatus;
 import epidemic_core.node.msg_related.StatusForMessage;
 import general.communication.Communication;
-import general.communication.implementation.TcpCommunication;
 import general.communication.implementation.UdpCommunication;
 import general.communication.utils.Address;
 
@@ -49,7 +47,7 @@ public class Node {
         // Initialize the socket to listen for incoming messages
         Address myAddress = nodeIdToAddressTable.get(id);
         if (myAddress != null) {
-            this.communication.startListening(myAddress);
+            this.communication.setupSocket(myAddress);
         } else {
             System.err.println("Warning: Node " + id + " address not found in nodeIdToAddressTable");
         }

@@ -6,7 +6,7 @@ import general.communication.utils.Address;
 public class TcpCommunication implements Communication {
 
     @Override
-    public void startListening(Address myAddress) {}
+    public void setupSocket(Address myAddress) {}
 
     @Override
     public void sendMessage(Address destination, String message) {}
