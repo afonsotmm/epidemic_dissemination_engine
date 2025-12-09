@@ -4,5 +4,6 @@ public enum MessageType {
     REQUEST,
     REPLY,
     INFECTED,
-    REMOVED
+    REMOVED,
+    PUSH
 }
