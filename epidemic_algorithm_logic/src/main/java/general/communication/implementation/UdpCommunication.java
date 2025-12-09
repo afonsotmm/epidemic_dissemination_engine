@@ -15,17 +15,23 @@ public class UdpCommunication implements Communication {
     private static final int BUFFER_SIZE = 1024;
 
     @Override
-    public void startListening(Address myAddress) {
+    public void setupSocket(Address myAddress) {
         try {
-            this.socket = new DatagramSocket(myAddress.getPort());
+            // Bind to specific IP address and port to allow multiple sockets on same port with different IPs
+            InetAddress bindAddress = InetAddress.getByName(myAddress.getIp());
+            this.socket = new DatagramSocket(myAddress.getPort(), bindAddress);
             System.out.println("UDP Socket listening on " + myAddress.getIp() + ":" + myAddress.getPort());
         } catch (SocketException e) {
-            System.err.println("Error creating UDP socket on port " + myAddress.getPort() + ": " + e.getMessage());
+            System.err.println("Error creating UDP socket on " + myAddress.getIp() + ":" + myAddress.getPort() + ": " + e.getMessage());
             // Don't print full stack trace for "Address already in use" - it's expected with many nodes
             if (!e.getMessage().contains("Address already in use")) {
                 e.printStackTrace();
             }
             // Socket remains null, which will be checked in sendMessage/receiveMessage
+        } catch (IOException e) {
+            System.err.println("Error resolving IP address " + myAddress.getIp() + ": " + e.getMessage());
+            e.printStackTrace();
+            // Socket remains null
         }
     }
     

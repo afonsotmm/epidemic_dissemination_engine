@@ -5,7 +5,7 @@ import general.communication.utils.Address;
 public interface Communication {
 
     // Socket configuration
-    void startListening(Address myAddress);
+    void setupSocket(Address myAddress);
 
     // Send message to the dest. address
     void sendMessage(Address destination, String message);
