@@ -23,9 +23,9 @@ public class PullNode extends Node {
     public static final double RUNNING_INTERVAL = 50; // milliseconds
 
     // Pull Node Components
-    Listener listener;
-    Dispatcher dispatcher;
-    Worker worker;
+    private Listener listener;
+    private Dispatcher dispatcher;
+    private Worker worker;
 
     // Msg buffers
     private BlockingQueue<String> msgsQueue;
@@ -45,9 +45,9 @@ public class PullNode extends Node {
         this.replyMsgs    = new LinkedBlockingQueue<>();
         this.requestMsgs  = new LinkedBlockingQueue<>();
 
-        this.listener   = new Listener(this, msgsQueue);
-        this.dispatcher = new Dispatcher(msgsQueue, replyMsgs, requestMsgs);
-        this.worker     = new Worker(this, replyMsgs, requestMsgs);
+        this.listener     = new Listener(this, msgsQueue);
+        this.dispatcher   = new Dispatcher(msgsQueue, replyMsgs, requestMsgs);
+        this.worker       = new Worker(this, replyMsgs, requestMsgs);
     }
 
     // ===========================================================
