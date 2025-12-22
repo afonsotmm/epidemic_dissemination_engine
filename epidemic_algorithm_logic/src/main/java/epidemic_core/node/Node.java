@@ -1,8 +1,8 @@
 package epidemic_core.node;
 
 import epidemic_core.message.Message;
-import epidemic_core.message.MessageType;
 import epidemic_core.node.msg_related.NodeRole;
+import epidemic_core.node.msg_related.NodeStatus;
 import epidemic_core.node.msg_related.StatusForMessage;
 import general.communication.Communication;
 import general.communication.implementation.UdpCommunication;
@@ -14,8 +14,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 
-//TODO: URGENT Refactor this!!!!
-
 public class Node {
 
     private Integer id;
@@ -26,6 +24,7 @@ public class Node {
     private Communication communication;
 
     // Stored by Subject and includes the Status & Role of the node relative to that msg
+    // TODO: Change the input to: source_id + local_counter + subject
     private Map<String, StatusForMessage> storedMessages;
 
     // Constructor
@@ -34,15 +33,14 @@ public class Node {
                 String assignedSubjectAsSource,
                 Map<Integer, Address> nodeIdToAddressTable,
                 Address supervisorAddress) {
+
         this.id = id;
         this.neighbours = neighbours;
         this.assignedSubjectAsSource = assignedSubjectAsSource;
         this.nodeIdToAddressTable = nodeIdToAddressTable;
         this.supervisorAddress = supervisorAddress;
         this.storedMessages = new ConcurrentHashMap<>();
-        // TODO: Supervisor should choose for each Node either Udp or Tcp
         this.communication = new UdpCommunication();
-        // this.communication = new TcpCommunication();
 
         // Initialize the socket to listen for incoming messages
         Address myAddress = nodeIdToAddressTable.get(id);
@@ -68,78 +66,85 @@ public class Node {
 
     public Communication getCommunication() { return communication; }
 
-    // Actuating as a FORWARDER of a given msg
-    // TODO: Refactor this duplication
-    public Boolean storeOrIgnoreMessage(Message receivedMessage) {
+    public Integer getId() { return id; }
 
-        String receivedSubject = receivedMessage.getSubject();
-        Integer receivedTimeStamp = receivedMessage.getTimeStamp();
+    // Sends a notification to supervisor about the Node's current status related to a given message
+    public void notifyStatusSupervisor(NodeStatus statusToNotify, Message message) {
 
-        if (hasMessage(receivedSubject)) {
+        // Create a new header (like: "StatusUpdate")
+        String encodedMessage = statusToNotify + ";" + id + ";" +
+                message.getSubject() + ";" +
+                message.getTimeStamp() + ";" +
+                message.getData();
+        communication.sendMessage(supervisorAddress, encodedMessage);
 
-            Message currMessage = storedMessages.get(receivedSubject).getMessage();
-            Integer currTimeStamp = currMessage.getTimeStamp();
+    }
 
-            if (receivedTimeStamp > currTimeStamp) {
-                StatusForMessage newMessage = new StatusForMessage(receivedMessage, NodeRole.FORWARDER);
-                storedMessages.put(receivedSubject, newMessage);
+    // Stores the message
+    public void storeMessage(Message message, NodeRole role) {
 
-                // Log: Node stored/updated message
-                System.out.println("[Node " + id + "] Stored/Updated subject '" + receivedSubject + 
-                        "' with value: " + receivedMessage.getData() + " (timestamp: " + receivedTimeStamp + ")");
+        Integer receivedTimeStamp = message.getTimeStamp();
+        String receivedSubject = message.getSubject();
 
-                // Node is now INFECTED with the received msg so supervisor needs to know!
-                // TODO: Make the msg modular (here we are creating a new msg type...)
-                // Format: INFECTED;nodeId;subject;timestamp;data
-                String encodedMessage = MessageType.INFECTED + ";" + id + ";" + 
-                        receivedMessage.getSubject() + ";" + 
-                        receivedMessage.getTimeStamp() + ";" + 
-                        receivedMessage.getData();
-                communication.sendMessage(supervisorAddress, encodedMessage);
+        StatusForMessage newMessage = new StatusForMessage(message, role);
+        storedMessages.put(receivedSubject, newMessage);
 
-                // Store
-                return true;
+        if(role == NodeRole.FORWARDER) {
+        // Log: Node stored/updated message
+        System.out.println("[Node " + id + "] Stored/Updated subject '" + receivedSubject +
+                "' with value: " + message.getData() + " (timestamp: " + receivedTimeStamp + ")");
+        } else if(role == NodeRole.SOURCE) {
+            // Log: Node generated message as SOURCE
+            System.out.println("[Node " + id + "] Generated as SOURCE - subject '" + assignedSubjectAsSource +
+                    "' with value: " +  message.getData());
+        }
+
+        notifyStatusSupervisor(NodeStatus.INFECTED, message);
+
+    }
+
+    // Stores the message only if it is new or more recent than the stored one
+    // Assumes FORWARDER role by default (when receiving from another node)
+    public boolean storeOrIgnoreMessage(Message receivedMessage) {
+        return storeOrIgnoreMessage(receivedMessage, NodeRole.FORWARDER);
+    }
+
+    public boolean storeOrIgnoreMessage(Message receivedMessage, NodeRole role) {
+
+        StatusForMessage alrStoredMsg = storedMessages.get(receivedMessage.getSubject());
+
+        if (alrStoredMsg == null || receivedMessage.getTimeStamp() > alrStoredMsg.getMessage().getTimeStamp()) {
+            NodeRole roleToUse = role;
+            
+            // If role is SOURCE, always use SOURCE
+            // If role is FORWARDER but node was already SOURCE, maintain SOURCE
+            if (role == NodeRole.FORWARDER && alrStoredMsg != null && alrStoredMsg.getNodeRole() == NodeRole.SOURCE) {
+                roleToUse = NodeRole.SOURCE;
             }
-
-        } else {
-            StatusForMessage newMessage = new StatusForMessage(receivedMessage, NodeRole.FORWARDER);
-            storedMessages.put(receivedSubject, newMessage);
-
-            // Log: Node stored new message
-            System.out.println("[Node " + id + "] Stored new subject '" + receivedSubject + 
-                    "' with value: " + receivedMessage.getData() + " (timestamp: " + receivedTimeStamp + ")");
-
-            // Node is now INFECTED with the received msg so supervisor needs to know!
-            // Format: INFECTED;nodeId;subject;timestamp;data
-            String encodedMessage = MessageType.INFECTED + ";" + id + ";" + 
-                    receivedMessage.getSubject() + ";" + 
-                    receivedMessage.getTimeStamp() + ";" + 
-                    receivedMessage.getData();
-            communication.sendMessage(supervisorAddress, encodedMessage);
-
+            // Otherwise, use the provided role (SOURCE or FORWARDER)
+            storeMessage(receivedMessage, roleToUse);
             // Store
             return true;
         }
-
         // Ignore
         return false;
     }
 
-    // Actuating as a SOURCE of a given msg
+    // Actuating as a SOURCE of a given msg:
+    // Generates and stores a msg
     private void generateAndStoreMessage() {
+        // Generate
         String data = randomDataGenerator(assignedSubjectAsSource);
         Message message = new Message(assignedSubjectAsSource, 0, data);
-        StatusForMessage generatedMessage = new StatusForMessage(message, NodeRole.SOURCE);
-        storedMessages.put(assignedSubjectAsSource, generatedMessage);
-        
-        // Log: Node generated message as SOURCE
-        System.out.println("[Node " + id + "] Generated as SOURCE - subject '" + assignedSubjectAsSource + 
-                "' with value: " + data);
+
+        //Store
+        storeOrIgnoreMessage(message, NodeRole.SOURCE);
     }
 
+    // Generates random data
     private String randomDataGenerator(String subject) {
         Random rand  = new Random();
-        int num = rand.nextInt(100); // TODO: Make this dependent on the subject
+        int num = rand.nextInt(100);
         return Integer.toString(num);
     }
 
@@ -148,7 +153,6 @@ public class Node {
         List<Message> messages = new ArrayList<>();
 
         for (Map.Entry<String, StatusForMessage> entry : storedMessages.entrySet()) {
-            String subject = entry.getKey();
             Message message = entry.getValue().getMessage();
             messages.add(message);
         }
@@ -170,11 +174,6 @@ public class Node {
                         " | Timestamp: " + message.getTimeStamp() + " | Role: " + role);
             }
         }
-    }
-
-    // Get id
-    public Integer getId() {
-        return id;
     }
 
 }
