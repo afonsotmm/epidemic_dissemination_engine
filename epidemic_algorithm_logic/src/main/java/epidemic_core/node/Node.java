@@ -1,13 +1,13 @@
 package epidemic_core.node;
 
 import epidemic_core.message.Message;
-import epidemic_core.message.MessageType;
+import epidemic_core.message.msgTypes.NodeToNode;
 import epidemic_core.node.msg_related.NodeRole;
 import epidemic_core.node.msg_related.StatusForMessage;
 import general.communication.Communication;
 import general.communication.implementation.UdpCommunication;
 import general.communication.utils.Address;
-import supervisor.NodeIdToAddressTable;
+import supervisor.network_emulation.utils.NodeIdToAddressTable;
 
 import java.util.ArrayList;
 import java.util.Map;
@@ -92,7 +92,7 @@ public class Node {
                 // Node is now INFECTED with the received msg so supervisor needs to know!
                 // TODO: Make the msg modular (here we are creating a new msg type...)
                 // Format: INFECTED;nodeId;subject;timestamp;data
-                String encodedMessage = MessageType.INFECTED + ";" + id + ";" + 
+                String encodedMessage = NodeToNode.INFECTED + ";" + id + ";" +
                         receivedMessage.getSubject() + ";" + 
                         receivedMessage.getTimeStamp() + ";" + 
                         receivedMessage.getData();
@@ -112,7 +112,7 @@ public class Node {
 
             // Node is now INFECTED with the received msg so supervisor needs to know!
             // Format: INFECTED;nodeId;subject;timestamp;data
-            String encodedMessage = MessageType.INFECTED + ";" + id + ";" + 
+            String encodedMessage = NodeToNode.INFECTED + ";" + id + ";" +
                     receivedMessage.getSubject() + ";" + 
                     receivedMessage.getTimeStamp() + ";" + 
                     receivedMessage.getData();

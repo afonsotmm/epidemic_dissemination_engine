@@ -5,7 +5,7 @@ import epidemic_core.node.mode.pull.components.Listener;
 import epidemic_core.node.mode.pull.components.Worker;
 import general.communication.utils.Address;
 import epidemic_core.node.Node;
-import supervisor.NodeIdToAddressTable;
+import supervisor.network_emulation.utils.NodeIdToAddressTable;
 
 import java.util.List;
 import java.util.Map;

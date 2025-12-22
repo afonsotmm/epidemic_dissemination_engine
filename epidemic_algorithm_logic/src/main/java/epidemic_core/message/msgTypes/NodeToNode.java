@@ -1,6 +1,6 @@
-package epidemic_core.message;
+package epidemic_core.message.msgTypes;
 // TODO: Eliminar duplicação com o NodeStatus
-public enum MessageType {
+public enum NodeToNode {
     REQUEST,
     REPLY,
     INFECTED,

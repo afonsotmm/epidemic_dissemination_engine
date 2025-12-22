@@ -16,8 +16,19 @@ public class NetworkEmulator {
 
     private final Address supervisorAddr = new Address("127.0.0.0", 7000);
     private final double pushInterval = 2;
+    private Integer N;
+    private Integer sourceNodes;
+    private String topologyType;
+    private String modeType;
 
-    public void initializeNetwork(int N, int sourceNodes, String topologyType, String modeType)
+    public NetworkEmulator(Integer N, Integer sourceNodes, String topologyType, String modeType) {
+        this.N = N;
+        this.sourceNodes = sourceNodes;
+        this.topologyType = topologyType;
+        this.modeType = modeType;
+    }
+
+    public void initializeNetwork()
     {
         NodeIdToAddressTable infoTable = new NodeIdToAddressTable(N); // ip + port
 
@@ -54,8 +65,7 @@ public class NetworkEmulator {
             }
             else{ subjectStr = null; } // doesnt have a subject
 
-            Thread t = runMode(id, neighbours, subjectStr, infoTable, mode);
-            t.start();
+            Thread.startVirtualThread(runMode(id, neighbours, subjectStr, infoTable, mode));
         }
     }
 
@@ -69,12 +79,12 @@ public class NetworkEmulator {
 
         switch (mode) {
             case PULL -> node = new PullNode(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, supervisorAddr);
-            case PUSH -> node = new PushNode(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, pushInterval, supervisorAddr);
-            case PUSHPULL -> node = new PushPullNode(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, supervisorAddr);
+            //case PUSH -> node = new PushNode(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, pushInterval, supervisorAddr);
+            //case PUSHPULL -> node = new PushPullNode(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, supervisorAddr);
             default -> throw new IllegalArgumentException("Invalid mode: " + mode);
         }
 
-        Thread t = new Thread(() -> {
+        Thread t = Thread.startVirtualThread(() -> {
 //            if (node instanceof PullNode pn) pn.startRunning();
 //            else if (node instanceof PushNode ps) ps.startRunning();
 //            else if (node instanceof PushPullNode pp) pp.startRunning();

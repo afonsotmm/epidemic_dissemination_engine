@@ -1,4 +1,4 @@
-package supervisor.communication_fsm;
+package supervisor.communication;
 
 public enum CommsStates {
     IDLE,

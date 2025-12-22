@@ -4,6 +4,8 @@ package epidemic_core.message;
 //  The timeStamp field serves as a logical counter to determine message freshness.
 //  Higher values indicate more recent messages.
 
+import epidemic_core.message.msgTypes.NodeToNode;
+
 public class Message {
 
     private String subject;   
@@ -34,7 +36,7 @@ public class Message {
     public void setData(String data) { this.data = data; }
 
     // Encode and Decode message's Methods
-    public String encodeMessage(MessageType header) {
+    public String encodeMessage(NodeToNode header) {
         return header + ";" + subject + ";" + timeStamp + ";" + data;
     }
 

@@ -1,7 +1,7 @@
 package epidemic_core.node.mode.pull.components;
 
 import epidemic_core.message.Message;
-import epidemic_core.message.MessageType;
+import epidemic_core.message.msgTypes.NodeToNode;
 import epidemic_core.node.mode.pull.PullNode;
 import epidemic_core.node.mode.pull.fsm.pull_fsm.logic.PullFsm;
 import epidemic_core.node.mode.pull.fsm.pull_fsm.logic.output.PullFsmResult;
@@ -75,7 +75,7 @@ public class Worker {
         // TODO: Make a specific message to pull requests
         // TODO: Maybe include origin address in every msg (not in data!)
         pullMsg.setData(Integer.toString(node.getId()));
-        String pullString = pullMsg.encodeMessage(MessageType.REQUEST);
+        String pullString = pullMsg.encodeMessage(NodeToNode.REQUEST);
 
         // Get a random neighbour
         // TODO: Make this a Node method (to avoid duplication)
@@ -153,7 +153,7 @@ public class Worker {
                     // Send a random message
                     int randIndex = rand.nextInt(storedMessages.size());
                     Message message = storedMessages.get(randIndex);
-                    String stringMsg = message.encodeMessage(MessageType.REPLY);
+                    String stringMsg = message.encodeMessage(NodeToNode.REPLY);
                     node.getCommunication().sendMessage(neighAddress, stringMsg);
                 } else {
                     System.err.println("Warning: Neighbour " + neighId + " address not found");

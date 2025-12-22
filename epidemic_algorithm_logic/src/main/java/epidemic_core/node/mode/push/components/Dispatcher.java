@@ -1,7 +1,7 @@
 package epidemic_core.node.mode.push.components;
 
 import epidemic_core.message.Message;
-import epidemic_core.message.MessageType;
+import epidemic_core.message.msgTypes.NodeToNode;
 
 import java.util.concurrent.BlockingQueue;
 
@@ -25,7 +25,7 @@ public class Dispatcher {
                 String consumedMsg = receivedMsgsQueue.take();
                 String header = Message.getMessageHeader(consumedMsg);
 
-                if(MessageType.PUSH.name().equals(header)){
+                if(NodeToNode.PUSH.name().equals(header)){
                     pushMsgs.put(consumedMsg);
                 }
 

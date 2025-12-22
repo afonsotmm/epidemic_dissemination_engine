@@ -1,7 +1,7 @@
 package epidemic_core.node.mode.push.components;
 
 import epidemic_core.message.Message;
-import epidemic_core.message.MessageType;
+import epidemic_core.message.msgTypes.NodeToNode;
 import epidemic_core.node.mode.push.PushNode;
 import epidemic_core.node.mode.push.fsm.push_fsm.logic.PushFsm;
 import epidemic_core.node.mode.push.fsm.push_fsm.logic.output.PushFsmResult;
@@ -75,7 +75,7 @@ public class Worker {
             // Pick a random message
             int randMsgIndex = rand.nextInt(storedMessages.size());
             Message message = storedMessages.get(randMsgIndex);
-            String stringMsg = message.encodeMessage(MessageType.PUSH);
+            String stringMsg = message.encodeMessage(NodeToNode.PUSH);
 
             // Pick a random neighbour
             int randNeighIndex = rand.nextInt(neighbours.size());
