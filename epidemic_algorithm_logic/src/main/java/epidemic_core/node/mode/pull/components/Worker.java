@@ -1,7 +1,8 @@
 package epidemic_core.node.mode.pull.components;
 
-import epidemic_core.message.Message;
-import epidemic_core.message.MessageType;
+import epidemic_core.message.common.MessageDispatcher;
+import epidemic_core.message.node_to_node.request.RequestMsg;
+import epidemic_core.message.node_to_node.spread.SpreadMsg;
 import epidemic_core.node.mode.pull.PullNode;
 import epidemic_core.node.mode.pull.fsm.pull_fsm.logic.PullFsm;
 import epidemic_core.node.mode.pull.fsm.pull_fsm.logic.output.PullFsmResult;
@@ -24,6 +25,8 @@ public class Worker {
     private BlockingQueue<String> requestMsgs;
     private List<String> newReqMsgs;
 
+    private BlockingQueue<String> startRoundMsgs;
+
     private PullFsm pullFsm;
     private ReplyFsm replyFsm;
 
@@ -31,7 +34,7 @@ public class Worker {
 
     private final Random rand = new Random();
 
-    public Worker(PullNode node, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs) {
+    public Worker(PullNode node, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs, BlockingQueue<String> startRoundMsgs) {
         this.node = node;
 
         this.replyMsgs = replyMsgs;
@@ -40,6 +43,8 @@ public class Worker {
         this.requestMsgs = requestMsgs;
         this.newReqMsgs = new ArrayList<>();
 
+        this.startRoundMsgs = startRoundMsgs;
+
         this.pullFsm = new PullFsm();
         this.replyFsm = new ReplyFsm();
 
@@ -47,8 +52,11 @@ public class Worker {
     }
 
     public void workingStep() {
+        checkForStartSignal();
         pullFsmHandle();
         replyFsmHandle();
+        // Print node state to track message evolution
+        node.printNodeState();
     }
 
     public void workingLoop() {
@@ -68,17 +76,21 @@ public class Worker {
     public void setStartSignal(boolean startSignal) { this.startSignal = startSignal; }
 
     // ======================================================= //
+    //                  START SIGNAL HANDLE                     //
+    // ======================================================= //
+    public void checkForStartSignal() {
+        startSignal = (startRoundMsgs.poll() != null);
+    }
+
+    // ======================================================= //
     //                  PULL FSM HANDLE                        //
     // ======================================================= //
     public void sendPullRequest() {
-        Message pullMsg = new Message();
-        // TODO: Make a specific message to pull requests
-        // TODO: Maybe include origin address in every msg (not in data!)
-        pullMsg.setData(Integer.toString(node.getId()));
-        String pullString = pullMsg.encodeMessage(MessageType.REQUEST);
+        // Create a REQUEST message with node ID as origin
+        RequestMsg requestMsg = new RequestMsg(node.getId());
+        String pullString = requestMsg.encode();
 
         // Get a random neighbour
-        // TODO: Make this a Node method (to avoid duplication)
         List<Integer> neighbours = node.getNeighbours();
         if (neighbours.isEmpty()) {
             System.err.println("[Node " + node.getId() + "] No neighbours to pull from");
@@ -116,10 +128,13 @@ public class Worker {
         if(result.updateStatus) {
             for(String newMsgStr: newReplyMsgs) {
                 try {
-                    Message newMsg = Message.decodeMessage(newMsgStr);
-                    Boolean gotStored = node.storeOrIgnoreMessage(newMsg);
-                    if(!gotStored) {
-                        System.out.println("[Node " + node.getId() + "] Ignored message - subject '" + newMsg.getSubject() + "' (older timestamp)");
+                    Object decodedMsg = MessageDispatcher.decode(newMsgStr);
+                    if (decodedMsg instanceof SpreadMsg) {
+                        SpreadMsg spreadMsg = (SpreadMsg) decodedMsg;
+                        Boolean gotStored = node.storeOrIgnoreMessage(spreadMsg);
+                        if(!gotStored) {
+                            System.out.println("[Node " + node.getId() + "] Ignored message - subject '" + spreadMsg.getId().subject() + "' (older timestamp)");
+                        }
                     }
                 } catch (Exception e) {
                     System.err.println("[Node " + node.getId() + "] Error decoding/processing reply message: " + e.getMessage());
@@ -140,26 +155,26 @@ public class Worker {
     // ======================================================= //
 
     public void sendPullReply(String reqMsgStr) {
-        // TODO: IMPROVE (now It sends a random message)
-        List<Message> storedMessages = node.getAllStoredMessages();
+        List<SpreadMsg> storedMessages = node.getAllStoredMessages();
 
         if (!storedMessages.isEmpty()) {
             try {
-                Message receivedMessage = Message.decodeMessage(reqMsgStr);
-                Integer neighId = Integer.valueOf(receivedMessage.getData());
-                Address neighAddress = node.getNeighbourAddress(neighId);
+                Object decodedMsg = MessageDispatcher.decode(reqMsgStr);
+                if (decodedMsg instanceof RequestMsg) {
+                    RequestMsg requestMsg = (RequestMsg) decodedMsg;
+                    Integer neighId = requestMsg.getOriginId();
+                    Address neighAddress = node.getNeighbourAddress(neighId);
 
-                if (neighAddress != null) {
-                    // Send a random message
-                    int randIndex = rand.nextInt(storedMessages.size());
-                    Message message = storedMessages.get(randIndex);
-                    String stringMsg = message.encodeMessage(MessageType.REPLY);
-                    node.getCommunication().sendMessage(neighAddress, stringMsg);
-                } else {
-                    System.err.println("Warning: Neighbour " + neighId + " address not found");
+                    if (neighAddress != null) {
+                        // Send all stored messages as spread
+                        for (SpreadMsg message : storedMessages) {
+                            String stringMsg = message.encode();
+                            node.getCommunication().sendMessage(neighAddress, stringMsg);
+                        }
+                    } else {
+                        System.err.println("Warning: Neighbour " + neighId + " address not found");
+                    }
                 }
-            } catch (NumberFormatException e) {
-                System.err.println("[Node " + node.getId() + "] Error parsing neighbour ID from request message: " + e.getMessage());
             } catch (Exception e) {
                 System.err.println("[Node " + node.getId() + "] Error processing pull reply: " + e.getMessage());
             }

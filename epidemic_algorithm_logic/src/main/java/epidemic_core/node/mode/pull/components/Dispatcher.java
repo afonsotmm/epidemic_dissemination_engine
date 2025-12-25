@@ -1,8 +1,6 @@
 package epidemic_core.node.mode.pull.components;
 
-import epidemic_core.message.Message;
-import epidemic_core.message.MessageType;
-
+import epidemic_core.message.common.MessageDispatcher;
 import java.util.concurrent.BlockingQueue;
 
 public class Dispatcher {
@@ -10,13 +8,15 @@ public class Dispatcher {
     private BlockingQueue<String> msgsQueue;
     private BlockingQueue<String> replyMsgs;
     private BlockingQueue<String> requestMsgs;
+    private BlockingQueue<String> startRoundMsgs;
 
     private volatile boolean running;
 
-    public Dispatcher(BlockingQueue<String> msgsQueue, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs) {
+    public Dispatcher(BlockingQueue<String> msgsQueue, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs, BlockingQueue<String> startRoundMsgs) {
         this.msgsQueue = msgsQueue;
         this.replyMsgs = replyMsgs;
         this.requestMsgs = requestMsgs;
+        this.startRoundMsgs = startRoundMsgs;
 
         running = true;
     }
@@ -26,13 +26,13 @@ public class Dispatcher {
         while(running){
             try {
                 String consumedMsg = msgsQueue.take();
-                String header = Message.getMessageHeader(consumedMsg);
-
-                if(MessageType.REQUEST.name().equals(header)){
+                
+                if (MessageDispatcher.isRequest(consumedMsg)) {
                     requestMsgs.put(consumedMsg);
-                }
-                else if(MessageType.REPLY.name().equals(header)){
+                } else if (MessageDispatcher.isSpread(consumedMsg)) {
                     replyMsgs.put(consumedMsg);
+                } else if (MessageDispatcher.isStartRound(consumedMsg)) {
+                    startRoundMsgs.put(consumedMsg);
                 }
 
                 Thread.onSpinWait();

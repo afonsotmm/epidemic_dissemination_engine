@@ -30,6 +30,7 @@ public class PushNode extends Node {
     // Msg buffers
     private BlockingQueue<String> receivedMsgsQueue;
     private BlockingQueue<String> pushMsgs;
+    private BlockingQueue<String> startRoundMsgs;
 
     // Constructor
     public PushNode(Integer id,
@@ -42,19 +43,16 @@ public class PushNode extends Node {
 
         this.receivedMsgsQueue    = new LinkedBlockingQueue<>();
         this.pushMsgs             = new LinkedBlockingQueue<>();
+        this.startRoundMsgs       = new LinkedBlockingQueue<>();
 
         this.listener   = new Listener(this, receivedMsgsQueue);
-        this.dispatcher = new Dispatcher(receivedMsgsQueue, pushMsgs);
-        this.worker     = new Worker(this, pushMsgs);
+        this.dispatcher = new Dispatcher(receivedMsgsQueue, pushMsgs, startRoundMsgs);
+        this.worker     = new Worker(this, pushMsgs, startRoundMsgs);
     }
 
     // ===========================================================
     //                        RUNNER
     // ===========================================================
-    public void triggerPushRound() {
-        worker.setStartSignal(true);
-    }
-
     public void startRunning() {
         Thread.startVirtualThread(listener::listeningLoop);
         Thread.startVirtualThread(dispatcher::dispatchingLoop);

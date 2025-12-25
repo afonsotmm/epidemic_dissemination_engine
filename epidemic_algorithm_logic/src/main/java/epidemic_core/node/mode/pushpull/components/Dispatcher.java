@@ -1,7 +1,8 @@
 package epidemic_core.node.mode.pushpull.components;
 
-import epidemic_core.message.Message;
-import epidemic_core.message.MessageType;
+import epidemic_core.message.common.MessageDispatcher;
+import epidemic_core.message.node_to_node.request_and_spread.RequestAndSpreadMsg;
+import epidemic_core.message.node_to_node.spread.SpreadMsg;
 
 import java.util.concurrent.BlockingQueue;
 
@@ -10,12 +11,14 @@ public class Dispatcher {
     private BlockingQueue<String> receivedMsgsQueue;
     private BlockingQueue<String> replyMsgs;
     private BlockingQueue<String> requestMsgs;
+    private BlockingQueue<String> startRoundMsgs;
     private volatile boolean running;
 
-    public Dispatcher(BlockingQueue<String> receivedMsgsQueue, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs) {
+    public Dispatcher(BlockingQueue<String> receivedMsgsQueue, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs, BlockingQueue<String> startRoundMsgs) {
         this.receivedMsgsQueue = receivedMsgsQueue;
         this.replyMsgs = replyMsgs;
         this.requestMsgs = requestMsgs;
+        this.startRoundMsgs = startRoundMsgs;
 
         running = true;
     }
@@ -25,18 +28,36 @@ public class Dispatcher {
         while(running){
             try {
                 String consumedMsg = receivedMsgsQueue.take();
-                String header = Message.getMessageHeader(consumedMsg);
-
-                if(MessageType.REQUEST.name().equals(header)){
+                
+                // Only process node_to_node messages
+                if (MessageDispatcher.isRequestAndSpread(consumedMsg)) {
+                    // Put the full message in requestMsgs for reply processing
                     requestMsgs.put(consumedMsg);
-                }
-                else if(MessageType.REPLY.name().equals(header)){
+                    
+                    // Also extract the SPREAD part and put it in replyMsgs for update processing
+                    try {
+                        Object decodedMsg = MessageDispatcher.decode(consumedMsg);
+                        if (decodedMsg instanceof RequestAndSpreadMsg) {
+                            RequestAndSpreadMsg requestAndSpreadMsg = (RequestAndSpreadMsg) decodedMsg;
+                            // Create a SpreadMsg from the RequestAndSpreadMsg
+                            SpreadMsg spreadPart = new SpreadMsg(
+                                requestAndSpreadMsg.getId(),
+                                requestAndSpreadMsg.getOriginId(),
+                                requestAndSpreadMsg.getData()
+                            );
+                            String spreadMsgString = spreadPart.encode();
+                            replyMsgs.put(spreadMsgString);
+                        }
+                    } catch (Exception e) {
+                        System.err.println("[Dispatcher] Error extracting SPREAD from RequestAndSpreadMsg: " + e.getMessage());
+                    }
+                } else if (MessageDispatcher.isRequest(consumedMsg)) {
+                    // Simple REQUEST (when node has no messages to send)
+                    requestMsgs.put(consumedMsg);
+                } else if (MessageDispatcher.isSpread(consumedMsg)) {
                     replyMsgs.put(consumedMsg);
-                }
-                else if(MessageType.PUSH.name().equals(header)){
-                    // In pushpull, PUSH messages can come with REQUEST
-                    // They are processed directly as updates
-                    replyMsgs.put(consumedMsg);
+                } else if (MessageDispatcher.isStartRound(consumedMsg)) {
+                    startRoundMsgs.put(consumedMsg);
                 }
 
             } catch (InterruptedException e) {

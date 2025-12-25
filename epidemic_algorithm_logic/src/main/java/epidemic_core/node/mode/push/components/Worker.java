@@ -1,7 +1,7 @@
 package epidemic_core.node.mode.push.components;
 
-import epidemic_core.message.Message;
-import epidemic_core.message.MessageType;
+import epidemic_core.message.common.MessageDispatcher;
+import epidemic_core.message.node_to_node.spread.SpreadMsg;
 import epidemic_core.node.mode.push.PushNode;
 import epidemic_core.node.mode.push.fsm.push_fsm.logic.PushFsm;
 import epidemic_core.node.mode.push.fsm.push_fsm.logic.output.PushFsmResult;
@@ -21,6 +21,8 @@ public class Worker {
     private BlockingQueue<String> pushMsgs;
     private List<String> newPushMsgs;
 
+    private BlockingQueue<String> startRoundMsgs;
+
     private PushFsm pushFsm;
     private UpdateFsm updateFsm;
 
@@ -28,11 +30,13 @@ public class Worker {
 
     private final Random rand = new Random();
 
-    public Worker(PushNode node, BlockingQueue<String> pushMsgs) {
+    public Worker(PushNode node, BlockingQueue<String> pushMsgs, BlockingQueue<String> startRoundMsgs) {
         this.node = node;
 
         this.pushMsgs = pushMsgs;
         this.newPushMsgs = new ArrayList<>();
+
+        this.startRoundMsgs = startRoundMsgs;
 
         this.pushFsm = new PushFsm();
         this.updateFsm = new UpdateFsm();
@@ -41,8 +45,11 @@ public class Worker {
     }
 
     public void workingStep() {
+        checkForStartSignal();
         pushFsmHandle();
         updateFsmHandle();
+        // Print node state to track message evolution
+        node.printNodeState();
     }
 
     public void workingLoop() {
@@ -59,32 +66,35 @@ public class Worker {
 
     }
 
-    public void setStartSignal(boolean startSignal) { this.startSignal = startSignal; }
+    // ======================================================= //
+    //                  START SIGNAL HANDLE                    //
+    // ======================================================= //
+    // return true if startRoundMsgs isn't empty
+    public void checkForStartSignal() {
+        startSignal = (startRoundMsgs.poll() != null);
+    }
+
 
     // ======================================================= //
     //                  PUSH FSM HANDLE                        //
     // ======================================================= //
     public void sendPushMsg() {
-        List<Message> storedMessages = node.getAllStoredMessages();
+        List<SpreadMsg> storedMessages = node.getAllStoredMessages();
         List<Integer> neighbours = node.getNeighbours();
 
         // Only send if there are neighbours and stored messages
         if (neighbours != null && !neighbours.isEmpty() && !storedMessages.isEmpty()) {
-            // Send a random message to a random neighbour
-
-            // Pick a random message
-            int randMsgIndex = rand.nextInt(storedMessages.size());
-            Message message = storedMessages.get(randMsgIndex);
-            String stringMsg = message.encodeMessage(MessageType.PUSH);
-
             // Pick a random neighbour
             int randNeighIndex = rand.nextInt(neighbours.size());
             Integer randNeighId = neighbours.get(randNeighIndex);
             Address randNeighAdd = node.getNeighbourAddress(randNeighId);
 
-            // Send Message only if address is valid
+            // Send all stored messages to the random neighbour
             if (randNeighAdd != null) {
-                node.getCommunication().sendMessage(randNeighAdd, stringMsg);
+                for (SpreadMsg message : storedMessages) {
+                    String stringMsg = message.encode();
+                    node.getCommunication().sendMessage(randNeighAdd, stringMsg);
+                }
             } else {
                 System.err.println("Warning: Neighbour " + randNeighId + " address not found");
             }
@@ -106,13 +116,16 @@ public class Worker {
         if(result.updateStatus) {
             for(String newMsgStr: newPushMsgs) {
                 try {
-                    Message newMsg = Message.decodeMessage(newMsgStr);
-                    Boolean gotStored = node.storeOrIgnoreMessage(newMsg);
-                    if(!gotStored) {
-                        System.out.println("[Node " + node.getId() + "] Ignored message - subject '" + newMsg.getSubject() + "' (older timestamp)");
+                    Object decodedMsg = MessageDispatcher.decode(newMsgStr);
+                    if (decodedMsg instanceof SpreadMsg) {
+                        SpreadMsg spreadMsg = (SpreadMsg) decodedMsg;
+                        Boolean gotStored = node.storeOrIgnoreMessage(spreadMsg);
+                        if(!gotStored) {
+                            System.out.println("[Node " + node.getId() + "] Ignored message - subject '" + spreadMsg.getId().subject() + "' (older timestamp)");
+                        }
                     }
                 } catch (Exception e) {
-                    System.err.println("[Node " + node.getId() + "] Error decoding/processing reply message: " + e.getMessage());
+                    System.err.println("[Node " + node.getId() + "] Error decoding/processing spread message: " + e.getMessage());
                 }
             }
 

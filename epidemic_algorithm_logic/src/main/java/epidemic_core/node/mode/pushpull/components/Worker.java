@@ -1,7 +1,10 @@
 package epidemic_core.node.mode.pushpull.components;
 
-import epidemic_core.message.Message;
-import epidemic_core.message.MessageType;
+import epidemic_core.message.common.MessageId;
+import epidemic_core.message.common.MessageDispatcher;
+import epidemic_core.message.node_to_node.request.RequestMsg;
+import epidemic_core.message.node_to_node.request_and_spread.RequestAndSpreadMsg;
+import epidemic_core.message.node_to_node.spread.SpreadMsg;
 import epidemic_core.node.mode.pushpull.PushPullNode;
 import epidemic_core.node.mode.pushpull.fsm.pushpull_fsm.logic.PushPullFsm;
 import epidemic_core.node.mode.pushpull.fsm.pushpull_fsm.logic.output.PushPullFsmResult;
@@ -24,6 +27,8 @@ public class Worker {
     private BlockingQueue<String> requestMsgs;
     private List<String> newReqMsgs;
 
+    private BlockingQueue<String> startRoundMsgs;
+
     private PushPullFsm pushPullFsm;
     private ReplyUpdateFsm replyUpdateFsm;
 
@@ -31,7 +36,7 @@ public class Worker {
 
     private final Random rand = new Random();
 
-    public Worker(PushPullNode node, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs) {
+    public Worker(PushPullNode node, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs, BlockingQueue<String> startRoundMsgs) {
         this.node = node;
 
         this.replyMsgs = replyMsgs;
@@ -40,6 +45,8 @@ public class Worker {
         this.requestMsgs = requestMsgs;
         this.newReqMsgs = new ArrayList<>();
 
+        this.startRoundMsgs = startRoundMsgs;
+
         this.pushPullFsm = new PushPullFsm();
         this.replyUpdateFsm = new ReplyUpdateFsm();
 
@@ -47,8 +54,11 @@ public class Worker {
     }
 
     public void workingStep() {
+        checkForStartSignal();
         pushPullFsmHandle();
         replyUpdateFsmHandle();
+        // Print node state to track message evolution
+        node.printNodeState();
     }
 
     public void workingLoop() {
@@ -68,14 +78,16 @@ public class Worker {
     public void setStartSignal(boolean startSignal) { this.startSignal = startSignal; }
 
     // ======================================================= //
+    //                  START SIGNAL HANDLE                     //
+    // ======================================================= //
+    public void checkForStartSignal() {
+        startSignal = (startRoundMsgs.poll() != null);
+    }
+
+    // ======================================================= //
     //                  PUSHPULL FSM HANDLE                    //
     // ======================================================= //
     public void sendPushPullRequest() {
-        // Send REQUEST with node ID
-        Message pullMsg = new Message();
-        pullMsg.setData(Integer.toString(node.getId()));
-        String pullString = pullMsg.encodeMessage(MessageType.REQUEST);
-
         // Get a random neighbour
         List<Integer> neighbours = node.getNeighbours();
         if (neighbours.isEmpty()) {
@@ -88,17 +100,33 @@ public class Worker {
         Address randNeighAdd = node.getNeighbourAddress(randNeighId);
 
         if (randNeighAdd != null) {
-            // Send REQUEST
-            node.getCommunication().sendMessage(randNeighAdd, pullString);
+            List<SpreadMsg> storedMessages = node.getAllStoredMessages();
             
-            // In pushpull mode, also send current state (PUSH)
-            List<Message> storedMessages = node.getAllStoredMessages();
             if (!storedMessages.isEmpty()) {
-                // Send a random stored message (current state)
-                int msgIndex = rand.nextInt(storedMessages.size());
-                Message stateMsg = storedMessages.get(msgIndex);
-                String pushString = stateMsg.encodeMessage(MessageType.PUSH);
-                node.getCommunication().sendMessage(randNeighAdd, pushString);
+                // In pushpull mode, send REQUEST_AND_SPREAD with first message, then send remaining as SPREAD
+                // Send REQUEST_AND_SPREAD with the first message
+                SpreadMsg firstMsg = storedMessages.get(0);
+                MessageId msgId = firstMsg.getId();
+                RequestAndSpreadMsg requestAndSpreadMsg = new RequestAndSpreadMsg(
+                    msgId,
+                    node.getId(),
+                    firstMsg.getData()
+                );
+                
+                String requestAndSpreadString = requestAndSpreadMsg.encode();
+                node.getCommunication().sendMessage(randNeighAdd, requestAndSpreadString);
+                
+                // Send remaining messages as SPREAD
+                for (int i = 1; i < storedMessages.size(); i++) {
+                    SpreadMsg message = storedMessages.get(i);
+                    String spreadString = message.encode();
+                    node.getCommunication().sendMessage(randNeighAdd, spreadString);
+                }
+            } else {
+                // If no messages, send simple REQUEST to get messages
+                RequestMsg requestMsg = new RequestMsg(node.getId());
+                String requestString = requestMsg.encode();
+                node.getCommunication().sendMessage(randNeighAdd, requestString);
             }
         } else {
             System.err.println("Warning: Neighbour " + randNeighId + " address not found");
@@ -125,10 +153,13 @@ public class Worker {
         if(result.updateStatus) {
             for(String newMsgStr: newReplyMsgs) {
                 try {
-                    Message newMsg = Message.decodeMessage(newMsgStr);
-                    Boolean gotStored = node.storeOrIgnoreMessage(newMsg);
-                    if(!gotStored) {
-                        System.out.println("[Node " + node.getId() + "] Ignored message - subject '" + newMsg.getSubject() + "' (older timestamp)");
+                    Object decodedMsg = MessageDispatcher.decode(newMsgStr);
+                    if (decodedMsg instanceof SpreadMsg) {
+                        SpreadMsg spreadMsg = (SpreadMsg) decodedMsg;
+                        Boolean gotStored = node.storeOrIgnoreMessage(spreadMsg);
+                        if(!gotStored) {
+                            System.out.println("[Node " + node.getId() + "] Ignored message - subject '" + spreadMsg.getId().subject() + "' (older timestamp)");
+                        }
                     }
                 } catch (Exception e) {
                     System.err.println("[Node " + node.getId() + "] Error decoding/processing reply/push message: " + e.getMessage());
@@ -149,32 +180,35 @@ public class Worker {
     // ======================================================= //
 
     public void sendPushPullReply(String reqMsgStr) {
-        List<Message> storedMessages = node.getAllStoredMessages();
+        List<SpreadMsg> storedMessages = node.getAllStoredMessages();
 
         if (!storedMessages.isEmpty()) {
             try {
-                Message receivedMessage = Message.decodeMessage(reqMsgStr);
-                Integer neighId = Integer.valueOf(receivedMessage.getData());
-                Address neighAddress = node.getNeighbourAddress(neighId);
-
-                if (neighAddress != null) {
-                    // In pushpull mode, send REPLY with a random stored message
-                    int randIndex = rand.nextInt(storedMessages.size());
-                    Message message = storedMessages.get(randIndex);
-                    String stringMsg = message.encodeMessage(MessageType.REPLY);
-                    node.getCommunication().sendMessage(neighAddress, stringMsg);
-                    
-                    // Also send current state as PUSH
-                    // (Note: if we already sent one above, we could optimize, but for now we send another)
-                    int pushIndex = rand.nextInt(storedMessages.size());
-                    Message pushMsg = storedMessages.get(pushIndex);
-                    String pushString = pushMsg.encodeMessage(MessageType.PUSH);
-                    node.getCommunication().sendMessage(neighAddress, pushString);
-                } else {
-                    System.err.println("Warning: Neighbour " + neighId + " address not found");
+                Object decodedMsg = MessageDispatcher.decode(reqMsgStr);
+                // Can receive RequestAndSpreadMsg (RequestMsg shouldn't happen in pushpull, but handle it)
+                Integer neighId = null;
+                if (decodedMsg instanceof RequestMsg) {
+                    RequestMsg requestMsg = (RequestMsg) decodedMsg;
+                    neighId = requestMsg.getOriginId();
+                } else if (decodedMsg instanceof RequestAndSpreadMsg) {
+                    RequestAndSpreadMsg requestAndSpreadMsg = (RequestAndSpreadMsg) decodedMsg;
+                    neighId = requestAndSpreadMsg.getOriginId();
+                    // Note: The SPREAD part is already processed by the Dispatcher and FSM
                 }
-            } catch (NumberFormatException e) {
-                System.err.println("[Node " + node.getId() + "] Error parsing neighbour ID from request message: " + e.getMessage());
+                
+                if (neighId != null) {
+                    Address neighAddress = node.getNeighbourAddress(neighId);
+
+                    if (neighAddress != null) {
+                        // Reply with all stored SPREAD messages
+                        for (SpreadMsg message : storedMessages) {
+                            String stringMsg = message.encode();
+                            node.getCommunication().sendMessage(neighAddress, stringMsg);
+                        }
+                    } else {
+                        System.err.println("Warning: Neighbour " + neighId + " address not found");
+                    }
+                }
             } catch (Exception e) {
                 System.err.println("[Node " + node.getId() + "] Error processing pushpull reply: " + e.getMessage());
             }

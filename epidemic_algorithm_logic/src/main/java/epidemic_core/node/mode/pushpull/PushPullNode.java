@@ -31,6 +31,7 @@ public class PushPullNode extends Node {
     private BlockingQueue<String> msgsQueue;
     private BlockingQueue<String> replyMsgs;
     private BlockingQueue<String> requestMsgs;
+    private BlockingQueue<String> startRoundMsgs;
 
     // Constructor
     public PushPullNode(Integer id,
@@ -44,15 +45,18 @@ public class PushPullNode extends Node {
         this.msgsQueue    = new LinkedBlockingQueue<>();
         this.replyMsgs    = new LinkedBlockingQueue<>();
         this.requestMsgs  = new LinkedBlockingQueue<>();
+        this.startRoundMsgs = new LinkedBlockingQueue<>();
 
         this.listener     = new Listener(this, msgsQueue);
-        this.dispatcher   = new Dispatcher(msgsQueue, replyMsgs, requestMsgs);
-        this.worker       = new Worker(this, replyMsgs, requestMsgs);
+        this.dispatcher   = new Dispatcher(msgsQueue, replyMsgs, requestMsgs, startRoundMsgs);
+        this.worker       = new Worker(this, replyMsgs, requestMsgs, startRoundMsgs);
     }
 
     // ===========================================================
     //                        RUNNER
     // ===========================================================
+    // Deprecated: Use StartRoundMsg instead
+    @Deprecated
     public void triggerPushPullRound() {
         worker.setStartSignal(true);
     }

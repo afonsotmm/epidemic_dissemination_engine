@@ -1,18 +1,22 @@
 package epidemic_core.node;
 
-import epidemic_core.message.Message;
+import epidemic_core.message.common.MessageId;
+import epidemic_core.message.node_to_node.spread.SpreadMsg;
 import epidemic_core.node.msg_related.NodeRole;
 import epidemic_core.node.msg_related.NodeStatus;
 import epidemic_core.node.msg_related.StatusForMessage;
 import general.communication.Communication;
 import general.communication.implementation.UdpCommunication;
 import general.communication.utils.Address;
+import epidemic_core.message.node_to_supervisor.infection_update.InfectionUpdateMsg;
 
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
+
+//  TODO: Gossip
 
 public class Node {
 
@@ -23,9 +27,8 @@ public class Node {
     private Address supervisorAddress;
     private Communication communication;
 
-    // Stored by Subject and includes the Status & Role of the node relative to that msg
-    // TODO: Change the input to: source_id + local_counter + subject
-    private Map<String, StatusForMessage> storedMessages;
+    // Stored by MessageId and includes the Status & Role of the node relative to that msg
+    private Map<MessageId, StatusForMessage> storedMessages;
 
     // Constructor
     public Node(Integer id,
@@ -56,9 +59,62 @@ public class Node {
     }
 
     // General Methods
-    public Boolean hasMessage(String subject) { return storedMessages.containsKey(subject); }
+    // Check if node has a message with the given subject and sourceId
+    public Boolean hasMessage(String subject, int sourceId) {
+        return getMessagebySubjectAndSource(subject, sourceId) != null;
+    }
+    
+    // checks if has any message with the subject (from any source)
+    public Boolean hasMessage(String subject) {
+        for (MessageId msgId : storedMessages.keySet()) {
+            if (msgId.subject().equals(subject)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
-    public StatusForMessage getMessagebySubject(String subject) { return storedMessages.get(subject); }
+    // Get the most recent message by subject and sourceId
+    public StatusForMessage getMessagebySubjectAndSource(String subject, int sourceId) {
+        StatusForMessage mostRecent = null;
+        long maxTimestamp = -1;
+        
+        for (Map.Entry<MessageId, StatusForMessage> entry : storedMessages.entrySet()) {
+            MessageId msgId = entry.getKey();
+            if (msgId.subject().equals(subject) && msgId.sourceId() == sourceId && msgId.timestamp() > maxTimestamp) {
+                mostRecent = entry.getValue();
+                maxTimestamp = msgId.timestamp();
+            }
+        }
+        
+        return mostRecent;
+    }
+    
+    // get most recent message by subject (from any source)
+    public StatusForMessage getMessagebySubject(String subject) {
+        StatusForMessage mostRecent = null;
+        long maxTimestamp = -1;
+        
+        for (Map.Entry<MessageId, StatusForMessage> entry : storedMessages.entrySet()) {
+            MessageId msgId = entry.getKey();
+            if (msgId.subject().equals(subject) && msgId.timestamp() > maxTimestamp) {
+                mostRecent = entry.getValue();
+                maxTimestamp = msgId.timestamp();
+            }
+        }
+        
+        return mostRecent;
+    }
+    
+    // Get message by exact MessageId
+    public StatusForMessage getMessageById(MessageId messageId) {
+        return storedMessages.get(messageId);
+    }
+    
+    // Check if node has a message with the exact MessageId
+    public Boolean hasMessageById(MessageId messageId) {
+        return storedMessages.containsKey(messageId);
+    }
 
     public List<Integer> getNeighbours() { return neighbours; }
 
@@ -69,51 +125,88 @@ public class Node {
     public Integer getId() { return id; }
 
     // Sends a notification to supervisor about the Node's current status related to a given message
-    public void notifyStatusSupervisor(NodeStatus statusToNotify, Message message) {
-
-        // Create a new header (like: "StatusUpdate")
-        String encodedMessage = statusToNotify + ";" + id + ";" +
-                message.getSubject() + ";" +
-                message.getTimeStamp() + ";" +
-                message.getData();
+    public void notifyStatusSupervisor(NodeStatus statusToNotify, SpreadMsg message, int infectingNodeId) {
+        // Create InfectionUpdateMsg
+        MessageId msgId = message.getId();
+        InfectionUpdateMsg infectionUpdateMsg = new InfectionUpdateMsg(
+                msgId,
+                id,  // updated_node_id (this node)
+                infectingNodeId  // infecting_node_id (node that infected this one)
+            );
+        
+        String encodedMessage = infectionUpdateMsg.encode();
         communication.sendMessage(supervisorAddress, encodedMessage);
-
+    }
+    
+    // Overloaded method for backward compatibility (when node is SOURCE, it infects itself)
+    public void notifyStatusSupervisor(NodeStatus statusToNotify, SpreadMsg message) {
+        // If node is SOURCE, it infects itself (infecting_node_id = this node id)
+        notifyStatusSupervisor(statusToNotify, message, id);
     }
 
-    // Stores the message
-    public void storeMessage(Message message, NodeRole role) {
+    // Stores the message (overload for when infecting node is the originId of the message)
+    public void storeMessage(SpreadMsg message, NodeRole role) {
+        // Use originId as infecting node (the node that sent this message)
+        storeMessage(message, role, message.getOriginId());
+    }
+    
+    // Stores the message with infecting node ID
+    public void storeMessage(SpreadMsg message, NodeRole role, int infectingNodeId) {
 
-        Integer receivedTimeStamp = message.getTimeStamp();
-        String receivedSubject = message.getSubject();
+        MessageId msgId = message.getId();
+        long receivedTimeStamp = msgId.timestamp();
+        String receivedSubject = msgId.subject();
+        int sourceId = msgId.sourceId();
 
         StatusForMessage newMessage = new StatusForMessage(message, role);
-        storedMessages.put(receivedSubject, newMessage);
+        
+        // Remove any existing message with the same subject AND sourceId (keep only most recent from same source)
+        storedMessages.entrySet().removeIf(entry -> {
+            MessageId key = entry.getKey();
+            return key.subject().equals(receivedSubject) && key.sourceId() == sourceId;
+        });
+        
+        // Store the new message by MessageId
+        storedMessages.put(msgId, newMessage);
 
         if(role == NodeRole.FORWARDER) {
         // Log: Node stored/updated message
         System.out.println("[Node " + id + "] Stored/Updated subject '" + receivedSubject +
-                "' with value: " + message.getData() + " (timestamp: " + receivedTimeStamp + ")");
+                "' with value: " + message.getData() + " (timestamp: " + receivedTimeStamp + ", sourceId: " + sourceId + ")");
         } else if(role == NodeRole.SOURCE) {
             // Log: Node generated message as SOURCE
             System.out.println("[Node " + id + "] Generated as SOURCE - subject '" + assignedSubjectAsSource +
                     "' with value: " +  message.getData());
         }
 
-        notifyStatusSupervisor(NodeStatus.INFECTED, message);
+        // If SOURCE, infecting node is itself; otherwise use the provided infectingNodeId
+        int actualInfectingNodeId;
+        if(role == NodeRole.SOURCE) {
+            actualInfectingNodeId = id;
+        }
+        else {
+            actualInfectingNodeId = infectingNodeId;
+        }
+        notifyStatusSupervisor(NodeStatus.INFECTED, message, actualInfectingNodeId);
 
     }
 
     // Stores the message only if it is new or more recent than the stored one
     // Assumes FORWARDER role by default (when receiving from another node)
-    public boolean storeOrIgnoreMessage(Message receivedMessage) {
+    public boolean storeOrIgnoreMessage(SpreadMsg receivedMessage) {
         return storeOrIgnoreMessage(receivedMessage, NodeRole.FORWARDER);
     }
 
-    public boolean storeOrIgnoreMessage(Message receivedMessage, NodeRole role) {
+    public boolean storeOrIgnoreMessage(SpreadMsg receivedMessage, NodeRole role) {
 
-        StatusForMessage alrStoredMsg = storedMessages.get(receivedMessage.getSubject());
+        MessageId msgId = receivedMessage.getId();
+        String subject = msgId.subject();
+        int sourceId = msgId.sourceId();
+        
+        // Find existing message with the same subject AND sourceId (only compare timestamps from same source)
+        StatusForMessage alrStoredMsg = getMessagebySubjectAndSource(subject, sourceId);
 
-        if (alrStoredMsg == null || receivedMessage.getTimeStamp() > alrStoredMsg.getMessage().getTimeStamp()) {
+        if (alrStoredMsg == null || msgId.timestamp() > alrStoredMsg.getMessage().getId().timestamp()) {
             NodeRole roleToUse = role;
             
             // If role is SOURCE, always use SOURCE
@@ -122,7 +215,9 @@ public class Node {
                 roleToUse = NodeRole.SOURCE;
             }
             // Otherwise, use the provided role (SOURCE or FORWARDER)
-            storeMessage(receivedMessage, roleToUse);
+            // Pass originId as infecting node (the node that sent this message)
+            int infectingNodeId = receivedMessage.getOriginId();
+            storeMessage(receivedMessage, roleToUse, infectingNodeId);
             // Store
             return true;
         }
@@ -135,7 +230,8 @@ public class Node {
     private void generateAndStoreMessage() {
         // Generate
         String data = randomDataGenerator(assignedSubjectAsSource);
-        Message message = new Message(assignedSubjectAsSource, 0, data);
+        MessageId messageId = new MessageId(assignedSubjectAsSource, 0, id);
+        SpreadMsg message = new SpreadMsg(messageId, id, data);
 
         //Store
         storeOrIgnoreMessage(message, NodeRole.SOURCE);
@@ -149,15 +245,30 @@ public class Node {
     }
 
     // Get all the stored messages
-    public List<Message> getAllStoredMessages() {
-        List<Message> messages = new ArrayList<>();
+    public List<SpreadMsg> getAllStoredMessages() {
+        List<SpreadMsg> messages = new ArrayList<>();
 
-        for (Map.Entry<String, StatusForMessage> entry : storedMessages.entrySet()) {
-            Message message = entry.getValue().getMessage();
+        for (Map.Entry<MessageId, StatusForMessage> entry : storedMessages.entrySet()) {
+            SpreadMsg message = entry.getValue().getMessage();
             messages.add(message);
         }
 
         return messages;
+    }
+    
+    // Get all stored messages with their status (for GUI)
+    public Map<MessageId, StatusForMessage> getAllStoredMessagesWithStatus() {
+        return new ConcurrentHashMap<>(storedMessages);
+    }
+    
+    // Check if node is a source
+    public boolean isSource() {
+        return assignedSubjectAsSource != null;
+    }
+    
+    // Get assigned subject as source
+    public String getAssignedSubjectAsSource() {
+        return assignedSubjectAsSource;
     }
 
     // Print current state of all subjects stored in this node
@@ -166,12 +277,12 @@ public class Node {
             System.out.println("[Node " + id + "] No subjects stored");
         } else {
             System.out.println("[Node " + id + "] Current subjects:");
-            for (Map.Entry<String, StatusForMessage> entry : storedMessages.entrySet()) {
-                String subject = entry.getKey();
-                Message message = entry.getValue().getMessage();
+            for (Map.Entry<MessageId, StatusForMessage> entry : storedMessages.entrySet()) {
+                MessageId msgId = entry.getKey();
+                SpreadMsg message = entry.getValue().getMessage();
                 NodeRole role = entry.getValue().getNodeRole();
-                System.out.println("  - Subject: '" + subject + "' | Value: " + message.getData() + 
-                        " | Timestamp: " + message.getTimeStamp() + " | Role: " + role);
+                System.out.println("  - Subject: '" + msgId.subject() + "' | Value: " + message.getData() + 
+                        " | Timestamp: " + msgId.timestamp() + " | SourceId: " + msgId.sourceId() + " | Role: " + role);
             }
         }
     }
