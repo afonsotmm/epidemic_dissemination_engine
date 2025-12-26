@@ -3,6 +3,7 @@ package epidemic_core.node.mode.pull;
 import epidemic_core.node.mode.pull.components.Dispatcher;
 import epidemic_core.node.mode.pull.components.Listener;
 import epidemic_core.node.mode.pull.components.Worker;
+import epidemic_core.message.common.MessageTopic;
 import general.communication.utils.Address;
 import epidemic_core.node.Node;
 
@@ -38,9 +39,10 @@ public class PullNode extends Node {
                     List<Integer> neighbours,
                     String assignedSubjectAsSource,
                     Map<Integer, Address> nodeIdToAddressTable,
+                    List<MessageTopic> subscribedTopics,
                     Address supervisorAddress) {
 
-        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, supervisorAddress);
+        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress);
 
         this.msgsQueue    = new LinkedBlockingQueue<>();
         this.replyMsgs    = new LinkedBlockingQueue<>();

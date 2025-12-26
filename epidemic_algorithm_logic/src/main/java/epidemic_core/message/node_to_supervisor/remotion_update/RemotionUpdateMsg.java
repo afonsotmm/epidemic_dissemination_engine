@@ -1,6 +1,7 @@
 package epidemic_core.message.node_to_supervisor.remotion_update;
 
 import epidemic_core.message.common.MessageId;
+import epidemic_core.message.common.MessageTopic;
 
 public class RemotionUpdateMsg {
 
@@ -25,9 +26,9 @@ public class RemotionUpdateMsg {
     public String encode() {
         return  header.direction().toString() + ";"
                 + header.messageType().toString() + ";"
-                + id.subject() + ";"
+                + id.topic().subject() + ";"
                 + id.timestamp() + ";"
-                + id.sourceId() + ";"
+                + id.topic().sourceId() + ";"
                 + updated_node_id;
     }
 
@@ -39,10 +40,13 @@ public class RemotionUpdateMsg {
             throw new IllegalArgumentException("Invalid SpreadMsg");
         }
 
-        MessageId id = new MessageId(
+        MessageTopic topic = new MessageTopic(
                 parts[2],
-                Long.parseLong(parts[3]),
                 Integer.parseInt(parts[4])
+        );
+        MessageId id = new MessageId(
+                topic,
+                Long.parseLong(parts[3])
         );
 
         int updated_node_id = Integer.parseInt(parts[5]);

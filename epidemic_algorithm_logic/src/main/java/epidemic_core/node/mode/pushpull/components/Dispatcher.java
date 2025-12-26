@@ -51,8 +51,8 @@ public class Dispatcher {
                     } catch (Exception e) {
                         System.err.println("[Dispatcher] Error extracting SPREAD from RequestAndSpreadMsg: " + e.getMessage());
                     }
-                } else if (MessageDispatcher.isRequest(consumedMsg)) {
-                    // Simple REQUEST (when node has no messages to send)
+                } else if (MessageDispatcher.isRequest(consumedMsg) || MessageDispatcher.isInitialRequest(consumedMsg)) {
+                    // REQUEST or INITIAL_REQUEST (when node has no messages to send or wants to discover)
                     requestMsgs.put(consumedMsg);
                 } else if (MessageDispatcher.isSpread(consumedMsg)) {
                     replyMsgs.put(consumedMsg);

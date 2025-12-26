@@ -27,7 +27,7 @@ public class Dispatcher {
             try {
                 String consumedMsg = msgsQueue.take();
                 
-                if (MessageDispatcher.isRequest(consumedMsg)) {
+                if (MessageDispatcher.isRequest(consumedMsg) || MessageDispatcher.isInitialRequest(consumedMsg)) {
                     requestMsgs.put(consumedMsg);
                 } else if (MessageDispatcher.isSpread(consumedMsg)) {
                     replyMsgs.put(consumedMsg);

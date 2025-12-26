@@ -119,9 +119,11 @@ public class Worker {
                     Object decodedMsg = MessageDispatcher.decode(newMsgStr);
                     if (decodedMsg instanceof SpreadMsg) {
                         SpreadMsg spreadMsg = (SpreadMsg) decodedMsg;
-                        Boolean gotStored = node.storeOrIgnoreMessage(spreadMsg);
-                        if(!gotStored) {
-                            System.out.println("[Node " + node.getId() + "] Ignored message - subject '" + spreadMsg.getId().subject() + "' (older timestamp)");
+                        if(node.subscriptionCheck(spreadMsg.getId().topic())) {
+                            Boolean gotStored = node.storeOrIgnoreMessage(spreadMsg);
+                            if(!gotStored) {
+                                System.out.println("[Node " + node.getId() + "] Ignored message - subject '" + spreadMsg.getId().topic().subject() + "' (older timestamp)");
+                            }
                         }
                     }
                 } catch (Exception e) {

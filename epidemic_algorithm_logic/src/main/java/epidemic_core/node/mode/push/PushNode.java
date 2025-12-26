@@ -3,6 +3,7 @@ package epidemic_core.node.mode.push;
 import epidemic_core.node.mode.push.components.Dispatcher;
 import epidemic_core.node.mode.push.components.Listener;
 import epidemic_core.node.mode.push.components.Worker;
+import epidemic_core.message.common.MessageTopic;
 import general.communication.utils.Address;
 import epidemic_core.node.Node;
 
@@ -37,9 +38,10 @@ public class PushNode extends Node {
                     List<Integer> neighbours,
                     String assignedSubjectAsSource,
                     Map<Integer, Address> nodeIdToAddressTable,
+                    List<MessageTopic> subscribedTopics,
                     Address supervisorAddress) {
 
-        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, supervisorAddress);
+        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress);
 
         this.receivedMsgsQueue    = new LinkedBlockingQueue<>();
         this.pushMsgs             = new LinkedBlockingQueue<>();

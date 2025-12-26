@@ -1,6 +1,7 @@
 package epidemic_core.node;
 
 import epidemic_core.message.common.MessageId;
+import epidemic_core.message.common.MessageTopic;
 import epidemic_core.message.node_to_node.spread.SpreadMsg;
 import epidemic_core.node.msg_related.NodeRole;
 import epidemic_core.node.msg_related.NodeStatus;
@@ -27,6 +28,9 @@ public class Node {
     private Address supervisorAddress;
     private Communication communication;
 
+    // Subject+SourceId that this node has interest
+    private List<MessageTopic> subscribedTopics;
+
     // Stored by MessageId and includes the Status & Role of the node relative to that msg
     private Map<MessageId, StatusForMessage> storedMessages;
 
@@ -35,6 +39,7 @@ public class Node {
                 List<Integer> neighbours,
                 String assignedSubjectAsSource,
                 Map<Integer, Address> nodeIdToAddressTable,
+                List<MessageTopic> subscribedTopics,
                 Address supervisorAddress) {
 
         this.id = id;
@@ -42,6 +47,7 @@ public class Node {
         this.assignedSubjectAsSource = assignedSubjectAsSource;
         this.nodeIdToAddressTable = nodeIdToAddressTable;
         this.supervisorAddress = supervisorAddress;
+        this.subscribedTopics = subscribedTopics != null ? new ArrayList<>(subscribedTopics) : new ArrayList<>();
         this.storedMessages = new ConcurrentHashMap<>();
         this.communication = new UdpCommunication();
 
@@ -67,13 +73,31 @@ public class Node {
     // checks if has any message with the subject (from any source)
     public Boolean hasMessage(String subject) {
         for (MessageId msgId : storedMessages.keySet()) {
-            if (msgId.subject().equals(subject)) {
+            if (msgId.topic().subject().equals(subject)) {
                 return true;
             }
         }
         return false;
     }
 
+    // Get the most recent message by MessageTopic (subject + sourceId)
+    public StatusForMessage getMessagebyTopic(MessageTopic topic) {
+        StatusForMessage mostRecent = null;
+        long maxTimestamp = -1;
+        
+        for (Map.Entry<MessageId, StatusForMessage> entry : storedMessages.entrySet()) {
+            MessageId msgId = entry.getKey();
+            if (msgId.topic().subject().equals(topic.subject()) 
+                && msgId.topic().sourceId() == topic.sourceId() 
+                && msgId.timestamp() > maxTimestamp) {
+                mostRecent = entry.getValue();
+                maxTimestamp = msgId.timestamp();
+            }
+        }
+        
+        return mostRecent;
+    }
+    
     // Get the most recent message by subject and sourceId
     public StatusForMessage getMessagebySubjectAndSource(String subject, int sourceId) {
         StatusForMessage mostRecent = null;
@@ -81,7 +105,7 @@ public class Node {
         
         for (Map.Entry<MessageId, StatusForMessage> entry : storedMessages.entrySet()) {
             MessageId msgId = entry.getKey();
-            if (msgId.subject().equals(subject) && msgId.sourceId() == sourceId && msgId.timestamp() > maxTimestamp) {
+            if (msgId.topic().subject().equals(subject) && msgId.topic().sourceId() == sourceId && msgId.timestamp() > maxTimestamp) {
                 mostRecent = entry.getValue();
                 maxTimestamp = msgId.timestamp();
             }
@@ -97,7 +121,7 @@ public class Node {
         
         for (Map.Entry<MessageId, StatusForMessage> entry : storedMessages.entrySet()) {
             MessageId msgId = entry.getKey();
-            if (msgId.subject().equals(subject) && msgId.timestamp() > maxTimestamp) {
+            if (msgId.topic().subject().equals(subject) && msgId.timestamp() > maxTimestamp) {
                 mostRecent = entry.getValue();
                 maxTimestamp = msgId.timestamp();
             }
@@ -155,15 +179,15 @@ public class Node {
 
         MessageId msgId = message.getId();
         long receivedTimeStamp = msgId.timestamp();
-        String receivedSubject = msgId.subject();
-        int sourceId = msgId.sourceId();
+        String receivedSubject = msgId.topic().subject();
+        int sourceId = msgId.topic().sourceId();
 
         StatusForMessage newMessage = new StatusForMessage(message, role);
         
         // Remove any existing message with the same subject AND sourceId (keep only most recent from same source)
         storedMessages.entrySet().removeIf(entry -> {
             MessageId key = entry.getKey();
-            return key.subject().equals(receivedSubject) && key.sourceId() == sourceId;
+            return key.topic().subject().equals(receivedSubject) && key.topic().sourceId() == sourceId;
         });
         
         // Store the new message by MessageId
@@ -200,8 +224,8 @@ public class Node {
     public boolean storeOrIgnoreMessage(SpreadMsg receivedMessage, NodeRole role) {
 
         MessageId msgId = receivedMessage.getId();
-        String subject = msgId.subject();
-        int sourceId = msgId.sourceId();
+        String subject = msgId.topic().subject();
+        int sourceId = msgId.topic().sourceId();
         
         // Find existing message with the same subject AND sourceId (only compare timestamps from same source)
         StatusForMessage alrStoredMsg = getMessagebySubjectAndSource(subject, sourceId);
@@ -230,7 +254,8 @@ public class Node {
     private void generateAndStoreMessage() {
         // Generate
         String data = randomDataGenerator(assignedSubjectAsSource);
-        MessageId messageId = new MessageId(assignedSubjectAsSource, 0, id);
+        MessageTopic topic = new MessageTopic(assignedSubjectAsSource, id);
+        MessageId messageId = new MessageId(topic, 0);
         SpreadMsg message = new SpreadMsg(messageId, id, data);
 
         //Store
@@ -271,18 +296,29 @@ public class Node {
         return assignedSubjectAsSource;
     }
 
+    // Get subscribed topics (interests)
+    public List<MessageTopic> getSubscribedTopics() { return subscribedTopics; }
+
+    public boolean subscriptionCheck(MessageTopic topic) {
+        for(MessageTopic subsTopic : subscribedTopics) {
+            // Check if both subject AND sourceId match
+            if(topic.subject().equals(subsTopic.subject()) && topic.sourceId() == subsTopic.sourceId()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // Print current state of all subjects stored in this node
     public void printNodeState() {
-        if (storedMessages.isEmpty()) {
-            System.out.println("[Node " + id + "] No subjects stored");
-        } else {
+        if (!storedMessages.isEmpty()) {
             System.out.println("[Node " + id + "] Current subjects:");
             for (Map.Entry<MessageId, StatusForMessage> entry : storedMessages.entrySet()) {
                 MessageId msgId = entry.getKey();
                 SpreadMsg message = entry.getValue().getMessage();
                 NodeRole role = entry.getValue().getNodeRole();
-                System.out.println("  - Subject: '" + msgId.subject() + "' | Value: " + message.getData() + 
-                        " | Timestamp: " + msgId.timestamp() + " | SourceId: " + msgId.sourceId() + " | Role: " + role);
+                System.out.println("  - Subject: '" + msgId.topic().subject() + "' | Value: " + message.getData() + 
+                        " | Timestamp: " + msgId.timestamp() + " | SourceId: " + msgId.topic().sourceId() + " | Role: " + role);
             }
         }
     }

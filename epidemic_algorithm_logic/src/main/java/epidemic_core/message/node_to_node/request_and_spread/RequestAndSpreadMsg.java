@@ -1,6 +1,7 @@
 package epidemic_core.message.node_to_node.request_and_spread;
 
 import epidemic_core.message.common.MessageId;
+import epidemic_core.message.common.MessageTopic;
 
 public class RequestAndSpreadMsg {
 
@@ -30,9 +31,9 @@ public class RequestAndSpreadMsg {
     public String encode() {
         return  header.direction().toString() + ";"
                 + header.messageType().toString() + ";"
-                + id.subject() + ";"
+                + id.topic().subject() + ";"
                 + id.timestamp() + ";"
-                + id.sourceId() + ";"
+                + id.topic().sourceId() + ";"
                 + originId + ";"
                 + data;
     }
@@ -45,10 +46,13 @@ public class RequestAndSpreadMsg {
             throw new IllegalArgumentException("Invalid RequestAndSpreadMsg");
         }
 
-        MessageId id = new MessageId(
+        MessageTopic topic = new MessageTopic(
                 parts[2],
-                Long.parseLong(parts[3]),
                 Integer.parseInt(parts[4])
+        );
+        MessageId id = new MessageId(
+                topic,
+                Long.parseLong(parts[3])
         );
 
         int originId = Integer.parseInt(parts[5]);
