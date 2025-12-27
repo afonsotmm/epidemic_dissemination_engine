@@ -1,48 +1,47 @@
-package epidemic_core.node.mode.pushpull;
+package epidemic_core.node.mode.pushpull.gossip.blind.coin;
 
+import epidemic_core.message.common.MessageTopic;
+import epidemic_core.node.GossipNode;
 import epidemic_core.node.mode.pushpull.components.Dispatcher;
 import epidemic_core.node.mode.pushpull.components.Listener;
-import epidemic_core.node.mode.pushpull.components.Worker;
-import epidemic_core.message.common.MessageTopic;
 import general.communication.utils.Address;
-import epidemic_core.node.Node;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
-// =================================================================
-//                     Guide to use this class
-// =================================================================
-//  -> To start a round: triggerPushPullRound()
-//  ...
-// =================================================================
-
-public class PushPullNode extends Node {
+// PushPullNode with Blind Coin Gossip protocol.
+// After sending a pushpull request, tosses a coin with probability 1/k.
+// If successful, the node stops making requests and spreading that message.
+// If the message changes (new timestamp), it can propagate normally.
+public class BlindCoinPushPullNode extends GossipNode {
 
     public static final double RUNNING_INTERVAL = 50; // milliseconds
 
     // PushPull Node Components
-    private Listener listener;
-    private Dispatcher dispatcher;
-    private Worker worker;
+    protected Listener listener;
+    protected Dispatcher dispatcher;
+    protected BlindCoinPushPullWorker worker;
 
     // Msg buffers
-    private BlockingQueue<String> msgsQueue;
-    private BlockingQueue<String> replyMsgs;
-    private BlockingQueue<String> requestMsgs;
-    private BlockingQueue<String> startRoundMsgs;
+    protected BlockingQueue<String> msgsQueue;
+    protected BlockingQueue<String> replyMsgs;
+    protected BlockingQueue<String> requestMsgs;
+    protected BlockingQueue<String> startRoundMsgs;
+
+    private final double k; // Probability parameter: 1/k chance to stop spreading
 
     // Constructor
-    public PushPullNode(Integer id,
-                    List<Integer> neighbours,
-                    String assignedSubjectAsSource,
-                    Map<Integer, Address> nodeIdToAddressTable,
-                    List<MessageTopic> subscribedTopics,
-                    Address supervisorAddress) {
-
+    public BlindCoinPushPullNode(Integer id,
+                                List<Integer> neighbours,
+                                String assignedSubjectAsSource,
+                                Map<Integer, Address> nodeIdToAddressTable,
+                                List<MessageTopic> subscribedTopics,
+                                Address supervisorAddress,
+                                double k) {
         super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress);
+        this.k = k;
 
         this.msgsQueue    = new LinkedBlockingQueue<>();
         this.replyMsgs    = new LinkedBlockingQueue<>();
@@ -51,18 +50,12 @@ public class PushPullNode extends Node {
 
         this.listener     = new Listener(this, msgsQueue);
         this.dispatcher   = new Dispatcher(msgsQueue, replyMsgs, requestMsgs, startRoundMsgs);
-        this.worker       = new Worker(this, replyMsgs, requestMsgs, startRoundMsgs);
+        this.worker       = new BlindCoinPushPullWorker(this, replyMsgs, requestMsgs, startRoundMsgs, k);
     }
 
     // ===========================================================
     //                        RUNNER
     // ===========================================================
-    // Deprecated: Use StartRoundMsg instead
-    @Deprecated
-    public void triggerPushPullRound() {
-        worker.setStartSignal(true);
-    }
-
     public void startRunning() {
         Thread.startVirtualThread(listener::listeningLoop);
         Thread.startVirtualThread(dispatcher::dispatchingLoop);
@@ -75,4 +68,9 @@ public class PushPullNode extends Node {
         dispatcher.stopDispatching();
     }
 
+    public double getK() {
+        return k;
+    }
+
 }
+

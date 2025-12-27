@@ -1,7 +1,7 @@
-package epidemic_core.node.mode.push.fsm.update_fsm.logic;
+package epidemic_core.node.mode.push.general.fsm.update_fsm.logic;
 
-import epidemic_core.node.mode.push.fsm.update_fsm.logic.output.UpdateFsmResult;
-import epidemic_core.node.mode.push.fsm.update_fsm.states.UpdateStates;
+import epidemic_core.node.mode.push.general.fsm.update_fsm.logic.output.UpdateFsmResult;
+import epidemic_core.node.mode.push.general.fsm.update_fsm.states.UpdateStates;
 import general.fsm.FiniteStateMachine;
 
 public class UpdateFsm extends FiniteStateMachine<UpdateStates> {

@@ -1,40 +1,33 @@
-package epidemic_core.node.mode.push;
+package epidemic_core.node.mode.push.anti_entropy;
 
-import epidemic_core.node.mode.push.components.Dispatcher;
-import epidemic_core.node.mode.push.components.Listener;
-import epidemic_core.node.mode.push.components.Worker;
+import epidemic_core.node.mode.push.general.components.Dispatcher;
+import epidemic_core.node.mode.push.general.components.Listener;
+import epidemic_core.node.mode.push.general.components.WorkerInterface;
+import epidemic_core.node.AntiEntropyNode;
 import epidemic_core.message.common.MessageTopic;
 import general.communication.utils.Address;
-import epidemic_core.node.Node;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
-// =================================================================
-//                     Guide to use this class
-// =================================================================
-//  -> To start a round: triggerPushRound()
-//  ...
-// =================================================================
-
-public class PushNode extends Node {
+public class AntiEntropyPushNode extends AntiEntropyNode {
 
     public static final double RUNNING_INTERVAL = 50; // milliseconds
 
     // Push Node Components
-    Listener listener;
-    Dispatcher dispatcher;
-    Worker worker;
+    protected Listener listener;
+    protected Dispatcher dispatcher;
+    protected WorkerInterface worker;
 
     // Msg buffers
-    private BlockingQueue<String> receivedMsgsQueue;
-    private BlockingQueue<String> pushMsgs;
-    private BlockingQueue<String> startRoundMsgs;
+    protected BlockingQueue<String> receivedMsgsQueue;
+    protected BlockingQueue<String> pushMsgs;
+    protected BlockingQueue<String> startRoundMsgs;
 
     // Constructor
-    public PushNode(Integer id,
+    public AntiEntropyPushNode(Integer id,
                     List<Integer> neighbours,
                     String assignedSubjectAsSource,
                     Map<Integer, Address> nodeIdToAddressTable,
@@ -49,7 +42,7 @@ public class PushNode extends Node {
 
         this.listener   = new Listener(this, receivedMsgsQueue);
         this.dispatcher = new Dispatcher(receivedMsgsQueue, pushMsgs, startRoundMsgs);
-        this.worker     = new Worker(this, pushMsgs, startRoundMsgs);
+        this.worker     = new AntiEntropyPushWorker(this, pushMsgs, startRoundMsgs);
     }
 
     // ===========================================================
@@ -60,6 +53,13 @@ public class PushNode extends Node {
         Thread.startVirtualThread(dispatcher::dispatchingLoop);
         Thread.startVirtualThread(worker::workingLoop);
     }
+    
+    public void stopRunning() {
+        stop(); // Set isRunning flag to false
+        listener.stopListening();
+        dispatcher.stopDispatching();
+    }
 
 }
+
 

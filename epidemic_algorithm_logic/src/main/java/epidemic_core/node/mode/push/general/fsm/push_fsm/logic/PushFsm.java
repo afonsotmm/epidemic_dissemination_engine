@@ -1,7 +1,7 @@
-package epidemic_core.node.mode.push.fsm.push_fsm.logic;
+package epidemic_core.node.mode.push.general.fsm.push_fsm.logic;
 
-import epidemic_core.node.mode.push.fsm.push_fsm.logic.output.PushFsmResult;
-import epidemic_core.node.mode.push.fsm.push_fsm.states.PushStates;
+import epidemic_core.node.mode.push.general.fsm.push_fsm.logic.output.PushFsmResult;
+import epidemic_core.node.mode.push.general.fsm.push_fsm.states.PushStates;
 
 import general.fsm.FiniteStateMachine;
 

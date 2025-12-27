@@ -37,7 +37,7 @@ public class RemotionUpdateMsg {
         String[] parts = raw.split(";");
 
         if (parts.length < 6) {
-            throw new IllegalArgumentException("Invalid SpreadMsg");
+            throw new IllegalArgumentException("Invalid RemotionUpdateMsg");
         }
 
         MessageTopic topic = new MessageTopic(

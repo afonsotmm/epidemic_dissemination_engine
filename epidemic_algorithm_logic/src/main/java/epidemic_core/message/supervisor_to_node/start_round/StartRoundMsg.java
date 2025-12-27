@@ -21,7 +21,7 @@ public class StartRoundMsg {
         String[] parts = raw.split(";");
 
         if (parts.length < 2) {
-            throw new IllegalArgumentException("Invalid RequestMsg");
+            throw new IllegalArgumentException("Invalid StartRoundMsg");
         }
 
         return new StartRoundMsg();

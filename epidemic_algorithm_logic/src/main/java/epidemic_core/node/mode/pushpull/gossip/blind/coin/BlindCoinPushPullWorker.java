@@ -1,13 +1,13 @@
-package epidemic_core.node.mode.pushpull.components;
+package epidemic_core.node.mode.pushpull.gossip.blind.coin;
 
-import epidemic_core.message.common.MessageId;
 import epidemic_core.message.common.MessageDispatcher;
+import epidemic_core.message.common.MessageId;
 import epidemic_core.message.common.MessageTopic;
 import epidemic_core.message.node_to_node.initial_request.InitialRequestMsg;
 import epidemic_core.message.node_to_node.request.RequestMsg;
 import epidemic_core.message.node_to_node.request_and_spread.RequestAndSpreadMsg;
 import epidemic_core.message.node_to_node.spread.SpreadMsg;
-import epidemic_core.node.mode.pushpull.PushPullNode;
+import epidemic_core.node.GossipNode;
 import epidemic_core.node.mode.pushpull.fsm.pushpull_fsm.logic.PushPullFsm;
 import epidemic_core.node.mode.pushpull.fsm.pushpull_fsm.logic.output.PushPullFsmResult;
 import epidemic_core.node.mode.pushpull.fsm.reply_update_fsm.logic.ReplyUpdateFsm;
@@ -20,9 +20,13 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 
-public class Worker {
+// Worker for Blind Coin PushPull protocol.
+// After sending a pushpull request, tosses a coin with probability 1/k.
+// If successful, the node stops making requests and spreading that message.
+// If the message changes (new timestamp), it can propagate normally.
+public class BlindCoinPushPullWorker {
 
-    private PushPullNode node;
+    private BlindCoinPushPullNode node;
 
     private BlockingQueue<String> replyMsgs;
     private List<String> newReplyMsgs;
@@ -38,22 +42,19 @@ public class Worker {
     private volatile boolean startSignal;
 
     private final Random rand = new Random();
+    private final double k; // Probability parameter: 1/k chance to stop spreading
 
-    public Worker(PushPullNode node, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs, BlockingQueue<String> startRoundMsgs) {
+    public BlindCoinPushPullWorker(BlindCoinPushPullNode node, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs, BlockingQueue<String> startRoundMsgs, double k) {
         this.node = node;
-
         this.replyMsgs = replyMsgs;
         this.newReplyMsgs = new ArrayList<>();
-
         this.requestMsgs = requestMsgs;
         this.newReqMsgs = new ArrayList<>();
-
         this.startRoundMsgs = startRoundMsgs;
-
         this.pushPullFsm = new PushPullFsm();
         this.replyUpdateFsm = new ReplyUpdateFsm();
-
         this.startSignal = false;
+        this.k = k;
     }
 
     public void workingStep() {
@@ -69,13 +70,12 @@ public class Worker {
             workingStep();
 
             try {
-                Thread.sleep((long) PushPullNode.RUNNING_INTERVAL);
+                Thread.sleep((long) BlindCoinPushPullNode.RUNNING_INTERVAL);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
             }
         }
-
     }
 
     public void setStartSignal(boolean startSignal) { this.startSignal = startSignal; }
@@ -115,10 +115,22 @@ public class Worker {
                     InitialRequestMsg reqMsg = new InitialRequestMsg(node.getId());
                     String request = reqMsg.encode();
                     node.getCommunication().sendMessage(randNeighAdd, request);
+                    // For InitialRequestMsg, we don't have a specific MessageId to remove, so no coin toss
                 } else {
                     // We have a message for this topic, send RequestAndSpreadMsg with its MessageId
                     SpreadMsg storedMsg = statusForMsg.getMessage();
                     MessageId msgId = storedMsg.getId();
+                    
+                    // Check if this specific message (MessageId = topic + timestamp) has been removed (Blind Coin)
+                    if (node.isMessageRemoved(msgId)) {
+                        // If removed, send InitialRequestMsg instead (act as if we don't have the message)
+                        // This allows the node to still receive updates if the message changes
+                        InitialRequestMsg reqMsg = new InitialRequestMsg(node.getId());
+                        String request = reqMsg.encode();
+                        node.getCommunication().sendMessage(randNeighAdd, request);
+                        continue;
+                    }
+                    
                     RequestAndSpreadMsg requestAndSpreadMsg = new RequestAndSpreadMsg(
                         msgId,
                         node.getId(),
@@ -127,6 +139,17 @@ public class Worker {
                     
                     String requestAndSpreadString = requestAndSpreadMsg.encode();
                     node.getCommunication().sendMessage(randNeighAdd, requestAndSpreadString);
+                    
+                    // After sending request+spread, toss coin with probability 1/k
+                    // If successful (coin == true), remove this specific message
+                    if (GossipNode.tossCoin(k)) {
+                        node.removeMessage(msgId);
+                        if (node.isRunning()) {
+                            System.out.println("[Node " + node.getId() + "] Blind Coin: Removed message '" + 
+                                    msgId.topic().subject() + "' from source " + msgId.topic().sourceId() + 
+                                    " (timestamp=" + msgId.timestamp() + ", k=" + k + ")");
+                        }
+                    }
                 }
             }
         } else {
@@ -135,7 +158,6 @@ public class Worker {
     }
 
     public void pushPullFsmHandle() {
-
         pushPullFsm.setStartSignal(startSignal);
         startSignal = false;
 
@@ -159,7 +181,7 @@ public class Worker {
                         SpreadMsg spreadMsg = (SpreadMsg) decodedMsg;
                         if(node.subscriptionCheck(spreadMsg.getId().topic())) {
                             Boolean gotStored = node.storeOrIgnoreMessage(spreadMsg);
-                            if(!gotStored) {
+                            if(!gotStored && node.isRunning()) {
                                 System.out.println("[Node " + node.getId() + "] Ignored message - subject '" + spreadMsg.getId().topic().subject() + "' (older timestamp)");
                             }
                         }
@@ -175,7 +197,6 @@ public class Worker {
         if(result.pushPullReq) {
             sendPushPullRequest();
         }
-
     }
 
     // ======================================================= //
@@ -198,10 +219,15 @@ public class Worker {
                 Address neighAddress = node.getNeighbourAddress(neighId);
                 if (neighAddress != null) {
                     // For InitialRequestMsg, send ALL stored messages
+                    // But only send messages that are NOT removed
                     List<SpreadMsg> storedMessages = node.getAllStoredMessages();
                     for (SpreadMsg message : storedMessages) {
-                        String stringMsg = message.encode();
-                        node.getCommunication().sendMessage(neighAddress, stringMsg);
+                        MessageId msgId = message.getId();
+                        // Only send if message is not removed
+                        if (!node.isMessageRemoved(msgId)) {
+                            String stringMsg = message.encode();
+                            node.getCommunication().sendMessage(neighAddress, stringMsg);
+                        }
                     }
                 } else {
                     System.err.println("Warning: Neighbour " + neighId + " address not found");
@@ -231,10 +257,11 @@ public class Worker {
                         // Get the stored message
                         StatusForMessage statusForMsg = node.getMessagebySubjectAndSource(reqSubject, reqSourceId);
                         SpreadMsg storedMessage = statusForMsg.getMessage();
-                        long storedTimestamp = storedMessage.getId().timestamp();
+                        MessageId storedMsgId = storedMessage.getId();
+                        long storedTimestamp = storedMsgId.timestamp();
 
-                        // Reply only if we have a more recent version
-                        if (storedTimestamp > reqTimestamp) {
+                        // Reply only if we have a more recent version AND it's not removed
+                        if (storedTimestamp > reqTimestamp && !node.isMessageRemoved(storedMsgId)) {
                             String stringMsg = storedMessage.encode();
                             node.getCommunication().sendMessage(neighAddress, stringMsg);
                         }
@@ -249,7 +276,6 @@ public class Worker {
     }
 
     public void replyUpdateFsmHandle() {
-
         ReplyUpdateFsmResult result = replyUpdateFsm.step();
 
         if(result.checkReqMsgs) {
@@ -268,6 +294,6 @@ public class Worker {
             
             newReqMsgs.clear();
         }
-
     }
 }
+

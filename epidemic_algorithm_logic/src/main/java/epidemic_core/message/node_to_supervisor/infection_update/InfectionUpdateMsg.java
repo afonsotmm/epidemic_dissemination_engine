@@ -42,7 +42,7 @@ public class InfectionUpdateMsg {
         String[] parts = raw.split(";");
 
         if (parts.length < 7) {
-            throw new IllegalArgumentException("Invalid SpreadMsg");
+            throw new IllegalArgumentException("Invalid InfectionUpdateMsg");
         }
 
         MessageTopic topic = new MessageTopic(

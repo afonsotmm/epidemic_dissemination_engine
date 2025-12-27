@@ -1,4 +1,4 @@
-package epidemic_core.node.mode.push.components;
+package epidemic_core.node.mode.push.general.components;
 
 import epidemic_core.message.common.MessageDispatcher;
 

@@ -1,6 +1,6 @@
 package epidemic_core.node.mode.pushpull.components;
 
-import epidemic_core.node.mode.pushpull.PushPullNode;
+import epidemic_core.node.Node;
 import general.communication.Communication;
 
 import java.util.concurrent.BlockingQueue;
@@ -11,7 +11,7 @@ public class Listener {
     private Communication communication;
     private volatile boolean running;
 
-    public Listener(PushPullNode node, BlockingQueue<String> receivedMsgsQueue) {
+    public Listener(Node node, BlockingQueue<String> receivedMsgsQueue) {
         this.communication = node.getCommunication();
         this.receivedMsgsQueue = receivedMsgsQueue;
 

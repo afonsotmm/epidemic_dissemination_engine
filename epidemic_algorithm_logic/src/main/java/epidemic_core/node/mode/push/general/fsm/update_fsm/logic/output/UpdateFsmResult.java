@@ -1,4 +1,4 @@
-package epidemic_core.node.mode.push.fsm.update_fsm.logic.output;
+package epidemic_core.node.mode.push.general.fsm.update_fsm.logic.output;
 
 public class UpdateFsmResult {
     public boolean checkPushMsgs = false;
