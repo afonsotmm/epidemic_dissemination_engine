@@ -1,6 +1,6 @@
 package supervisor.communication;
 
-import epidemic_core.message.FromUI.StartMessage;
+import epidemic_core.message.ui_to_supervisor.start_round.StartRoundMsg;
 import epidemic_core.message.Message;
 import epidemic_core.message.msgTypes.HeaderType;
 import general.fsm.FiniteStateMachine;
@@ -56,7 +56,7 @@ public class Worker {
 
     public void manageUiMessages(String msg){
         String header = Message.getMessageHeader(msg);
-        StartMessage startMsg = StartMessage.decodeMessage(msg);
+        StartRoundMsg startMsg = StartRoundMsg.decodeMessage(msg);
 
         if(HeaderType.UI_START.name().equals(header)){
             supervisor.startNetwork(startMsg); // initialize network

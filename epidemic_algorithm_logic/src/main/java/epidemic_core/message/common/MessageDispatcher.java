@@ -59,7 +59,7 @@ public class MessageDispatcher {
         return parts[1];
     }
 
-    // -------------------------- Node to Node uytils ----------------------------------------------
+    // -------------------------- Node to Node utils ----------------------------------------------
     public static boolean isNodeToNode(String raw) {
         return "node_to_node".equals(getDirection(raw));
     }
@@ -79,7 +79,19 @@ public class MessageDispatcher {
     public static boolean isRequestAndSpread(String raw) {
         return isNodeToNode(raw) && "request_and_spread".equals(getMessageType(raw));
     }
-    // ---------------------------------------------------------------------------------------------
+
+    // ------------------------- Node to Supervisor utils ------------------------------------------
+    public static boolean isNodeToSupervisor(String raw) {
+        return "node_to_supervisor".equals(getDirection(raw));
+    }
+
+    public static boolean isInfection(String raw){
+        return isNodeToSupervisor(raw) && "infection_update".equals(getDirection(raw));
+    }
+
+    public static boolean isRemotion(String raw){
+        return isNodeToSupervisor(raw) && "remotion_update".equals(getDirection(raw));
+    }
 
     // ------------------------- Supervisor to Node utils ------------------------------------------
     public static boolean isSupervisorToNode(String raw) {
@@ -89,5 +101,30 @@ public class MessageDispatcher {
     public static boolean isStartRound(String raw) {
         return isSupervisorToNode(raw) && "start_round".equals(getMessageType(raw));
     }
-    // ---------------------------------------------------------------------------------------------
+
+    // ------------------------- Supervisor to UI utils ------------------------------------------
+    public static boolean isSupervisorToUi(String raw) {
+        return "supervisor_to_ui".equals(getDirection(raw));
+    }
+
+    public static boolean isInfectionUpdate(String raw){
+        return isSupervisorToUi(raw) && "infection_update".equals(getDirection(raw));
+    }
+
+    public static boolean isRemotionUpdate(String raw){
+        return isSupervisorToUi(raw) && "remotion_update".equals(getDirection(raw));
+    }
+
+    // ------------------------- UI to Supervisor utils ------------------------------------------
+    public static boolean isUiToSupervisor(String raw) {
+        return "ui_to_supervisor".equals(getDirection(raw));
+    }
+
+    public static boolean isStartFromUi(String raw){
+        return isUiToSupervisor(raw) && "start_round".equals(getMessageType(raw));
+    }
+
+    public static boolean isEndFromUi(String raw){
+        return isUiToSupervisor(raw) && "end_round".equals(getMessageType(raw));
+    }
 }

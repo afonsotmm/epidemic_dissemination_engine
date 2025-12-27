@@ -1,0 +1,6 @@
+package epidemic_core.message.ui_to_supervisor;
+
+public enum UiToSupervisorMessageType {
+    start_round,
+    end_round
+}

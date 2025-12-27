@@ -1,6 +1,6 @@
 package supervisor;
 
-import epidemic_core.message.FromUI.StartMessage;
+import epidemic_core.message.ui_to_supervisor.start_round.StartRoundMsg;
 import general.communication.Communication;
 import general.communication.implementation.UdpCommunication;
 import supervisor.communication.Dispatcher;
@@ -24,7 +24,7 @@ public class Supervisor{
     private BlockingQueue<String> nodeQueue;
     private BlockingQueue<String> uiQueue;
 
-    private StartMessage startMessage;
+    private StartRoundMsg startMessage;
 
     public Supervisor(){
         // buffers:
@@ -43,7 +43,7 @@ public class Supervisor{
     }
 
     // initialize topology and nodes
-    public void startNetwork(StartMessage startMessage){ // run in worker when it receives a START msg
+    public void startNetwork(StartRoundMsg startMessage){ // run in worker when it receives a START msg
         this.startMessage = startMessage;
 
         system = new NetworkEmulator(startMessage.getN(), startMessage.getSourceNodes(), startMessage.getTopology(), startMessage.getMode());
