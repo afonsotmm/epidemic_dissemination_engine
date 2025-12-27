@@ -3,6 +3,7 @@ package epidemic_core.node.mode.push;
 import epidemic_core.node.mode.push.components.Dispatcher;
 import epidemic_core.node.mode.push.components.Listener;
 import epidemic_core.node.mode.push.components.Worker;
+import epidemic_core.message.common.MessageTopic;
 import general.communication.utils.Address;
 import epidemic_core.node.Node;
 import supervisor.network_emulation.utils.NodeIdToAddressTable;
@@ -31,31 +32,30 @@ public class PushNode extends Node {
     // Msg buffers
     private BlockingQueue<String> receivedMsgsQueue;
     private BlockingQueue<String> pushMsgs;
+    private BlockingQueue<String> startRoundMsgs;
 
     // Constructor
     public PushNode(Integer id,
                     List<Integer> neighbours,
                     String assignedSubjectAsSource,
                     Map<Integer, Address> nodeIdToAddressTable,
+                    List<MessageTopic> subscribedTopics,
                     Address supervisorAddress) {
 
-        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, supervisorAddress);
+        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress);
 
         this.receivedMsgsQueue    = new LinkedBlockingQueue<>();
         this.pushMsgs             = new LinkedBlockingQueue<>();
+        this.startRoundMsgs       = new LinkedBlockingQueue<>();
 
         this.listener   = new Listener(this, receivedMsgsQueue);
-        this.dispatcher = new Dispatcher(receivedMsgsQueue, pushMsgs);
-        this.worker     = new Worker(this, pushMsgs);
+        this.dispatcher = new Dispatcher(receivedMsgsQueue, pushMsgs, startRoundMsgs);
+        this.worker     = new Worker(this, pushMsgs, startRoundMsgs);
     }
 
     // ===========================================================
     //                        RUNNER
     // ===========================================================
-    public void triggerPushRound() {
-        worker.setStartSignal(true);
-    }
-
     public void startRunning() {
         Thread.startVirtualThread(listener::listeningLoop);
         Thread.startVirtualThread(dispatcher::dispatchingLoop);

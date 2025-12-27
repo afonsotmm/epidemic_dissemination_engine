@@ -1,7 +1,6 @@
 package epidemic_core.node.mode.push.components;
 
-import epidemic_core.message.Message;
-import epidemic_core.message.msgTypes.NodeToNode;
+import epidemic_core.message.common.MessageDispatcher;
 
 import java.util.concurrent.BlockingQueue;
 
@@ -9,11 +8,13 @@ public class Dispatcher {
 
     private BlockingQueue<String> receivedMsgsQueue;
     private BlockingQueue<String> pushMsgs;
+    private BlockingQueue<String> startRoundMsgs;
     private volatile boolean running;
 
-    public Dispatcher(BlockingQueue<String> receivedMsgsQueue, BlockingQueue<String> pushMsgs) {
+    public Dispatcher(BlockingQueue<String> receivedMsgsQueue, BlockingQueue<String> pushMsgs, BlockingQueue<String> startRoundMsgs) {
         this.receivedMsgsQueue = receivedMsgsQueue;
         this.pushMsgs = pushMsgs;
+        this.startRoundMsgs = startRoundMsgs;
 
         running = true;
     }
@@ -23,10 +24,12 @@ public class Dispatcher {
         while(running){
             try {
                 String consumedMsg = receivedMsgsQueue.take();
-                String header = Message.getMessageHeader(consumedMsg);
-
-                if(NodeToNode.PUSH.name().equals(header)){
+                
+                // Only process node_to_node;spread messages
+                if (MessageDispatcher.isSpread(consumedMsg)) {
                     pushMsgs.put(consumedMsg);
+                } else if (MessageDispatcher.isStartRound(consumedMsg)) {
+                    startRoundMsgs.put(consumedMsg);
                 }
 
                 Thread.onSpinWait();

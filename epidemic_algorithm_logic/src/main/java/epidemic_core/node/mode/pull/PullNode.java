@@ -3,9 +3,9 @@ package epidemic_core.node.mode.pull;
 import epidemic_core.node.mode.pull.components.Dispatcher;
 import epidemic_core.node.mode.pull.components.Listener;
 import epidemic_core.node.mode.pull.components.Worker;
+import epidemic_core.message.common.MessageTopic;
 import general.communication.utils.Address;
 import epidemic_core.node.Node;
-import supervisor.network_emulation.utils.NodeIdToAddressTable;
 
 import java.util.List;
 import java.util.Map;
@@ -24,36 +24,41 @@ public class PullNode extends Node {
     public static final double RUNNING_INTERVAL = 50; // milliseconds
 
     // Pull Node Components
-    Listener listener;
-    Dispatcher dispatcher;
-    Worker worker;
+    private Listener listener;
+    private Dispatcher dispatcher;
+    private Worker worker;
 
     // Msg buffers
     private BlockingQueue<String> msgsQueue;
     private BlockingQueue<String> replyMsgs;
     private BlockingQueue<String> requestMsgs;
+    private BlockingQueue<String> startRoundMsgs;
 
     // Constructor
     public PullNode(Integer id,
                     List<Integer> neighbours,
                     String assignedSubjectAsSource,
-                    NodeIdToAddressTable nodeIdToAddressTable,
+                    Map<Integer, Address> nodeIdToAddressTable,
+                    List<MessageTopic> subscribedTopics,
                     Address supervisorAddress) {
 
-        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, supervisorAddress);
+        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress);
 
         this.msgsQueue    = new LinkedBlockingQueue<>();
         this.replyMsgs    = new LinkedBlockingQueue<>();
         this.requestMsgs  = new LinkedBlockingQueue<>();
+        this.startRoundMsgs = new LinkedBlockingQueue<>();
 
-        this.listener   = new Listener(this, msgsQueue);
-        this.dispatcher = new Dispatcher(msgsQueue, replyMsgs, requestMsgs);
-        this.worker     = new Worker(this, replyMsgs, requestMsgs);
+        this.listener     = new Listener(this, msgsQueue);
+        this.dispatcher   = new Dispatcher(msgsQueue, replyMsgs, requestMsgs, startRoundMsgs);
+        this.worker       = new Worker(this, replyMsgs, requestMsgs, startRoundMsgs);
     }
 
     // ===========================================================
     //                        RUNNER
     // ===========================================================
+    // Deprecated: Use StartRoundMsg instead
+    @Deprecated
     public void triggerPullRound() {
         worker.setStartSignal(true);
     }

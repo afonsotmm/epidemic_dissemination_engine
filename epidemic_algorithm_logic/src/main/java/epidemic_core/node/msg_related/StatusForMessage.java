@@ -1,23 +1,23 @@
 package epidemic_core.node.msg_related;
 
-import epidemic_core.message.Message;
+import epidemic_core.message.node_to_node.spread.SpreadMsg;
 
 // Represents the status and role of a node relative to a specific message.
 // Each node can have different roles (SOURCE or FORWARDER) for different messages.
 
 public class StatusForMessage {
 
-    private final Message message;
+    private final SpreadMsg message;
     private NodeStatus nodeStatus;  // INFECTED or REMOVED
     private NodeRole nodeRole;      // SOURCE (generates) or FORWARDER (relays)
 
-    public StatusForMessage(Message msg, NodeRole initialRole) {
+    public StatusForMessage(SpreadMsg msg, NodeRole initialRole) {
         this.message = msg;
         this.nodeStatus = NodeStatus.INFECTED;
         this.nodeRole = initialRole;
     }
 
-    public Message getMessage() {
+    public SpreadMsg getMessage() {
         return message;
     }
 
