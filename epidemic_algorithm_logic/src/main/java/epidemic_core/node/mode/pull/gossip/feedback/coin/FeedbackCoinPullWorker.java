@@ -8,10 +8,11 @@ import epidemic_core.message.node_to_node.initial_request.InitialRequestMsg;
 import epidemic_core.message.node_to_node.request.RequestMsg;
 import epidemic_core.message.node_to_node.spread.SpreadMsg;
 import epidemic_core.node.GossipNode;
-import epidemic_core.node.mode.pull.fsm.pull_fsm.logic.PullFsm;
-import epidemic_core.node.mode.pull.fsm.pull_fsm.logic.output.PullFsmResult;
-import epidemic_core.node.mode.pull.fsm.reply_fsm.logic.ReplyFsm;
-import epidemic_core.node.mode.pull.fsm.reply_fsm.logic.output.ReplyFsmResult;
+import epidemic_core.node.mode.pull.gossip.GossipPullNode;
+import epidemic_core.node.mode.pull.general.fsm.pull_fsm.logic.PullFsm;
+import epidemic_core.node.mode.pull.general.fsm.pull_fsm.logic.output.PullFsmResult;
+import epidemic_core.node.mode.pull.general.fsm.reply_fsm.logic.ReplyFsm;
+import epidemic_core.node.mode.pull.general.fsm.reply_fsm.logic.output.ReplyFsmResult;
 import epidemic_core.node.msg_related.StatusForMessage;
 import general.communication.utils.Address;
 
@@ -24,7 +25,7 @@ import java.util.concurrent.BlockingQueue;
 // When receiving a request with MessageId that is already known, sends FeedbackMsg.
 // When receiving FeedbackMsg, tosses a coin with probability 1/k.
 // If successful, the node stops making requests and spreading that message.
-public class FeedbackCoinPullWorker {
+public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.general.components.WorkerInterface {
 
     private FeedbackCoinPullNode node;
 
@@ -70,7 +71,7 @@ public class FeedbackCoinPullWorker {
             workingStep();
 
             try {
-                Thread.sleep((long) FeedbackCoinPullNode.RUNNING_INTERVAL);
+                Thread.sleep((long) GossipPullNode.RUNNING_INTERVAL);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;

@@ -9,10 +9,11 @@ import epidemic_core.message.node_to_node.request.RequestMsg;
 import epidemic_core.message.node_to_node.request_and_spread.RequestAndSpreadMsg;
 import epidemic_core.message.node_to_node.spread.SpreadMsg;
 import epidemic_core.node.GossipNode;
-import epidemic_core.node.mode.pushpull.fsm.pushpull_fsm.logic.PushPullFsm;
-import epidemic_core.node.mode.pushpull.fsm.pushpull_fsm.logic.output.PushPullFsmResult;
-import epidemic_core.node.mode.pushpull.fsm.reply_update_fsm.logic.ReplyUpdateFsm;
-import epidemic_core.node.mode.pushpull.fsm.reply_update_fsm.logic.output.ReplyUpdateFsmResult;
+import epidemic_core.node.mode.pushpull.gossip.GossipPushPullNode;
+import epidemic_core.node.mode.pushpull.general.fsm.pushpull_fsm.logic.PushPullFsm;
+import epidemic_core.node.mode.pushpull.general.fsm.pushpull_fsm.logic.output.PushPullFsmResult;
+import epidemic_core.node.mode.pushpull.general.fsm.reply_update_fsm.logic.ReplyUpdateFsm;
+import epidemic_core.node.mode.pushpull.general.fsm.reply_update_fsm.logic.output.ReplyUpdateFsmResult;
 import epidemic_core.node.msg_related.StatusForMessage;
 import general.communication.utils.Address;
 
@@ -26,7 +27,7 @@ import java.util.concurrent.BlockingQueue;
 // When receiving FeedbackMsg, tosses a coin with probability 1/k.
 // If successful, the node stops making requests and spreading that message.
 // If the message changes (new timestamp), it can propagate normally.
-public class FeedbackCoinPushPullWorker {
+public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushpull.general.components.WorkerInterface {
 
     private FeedbackCoinPushPullNode node;
 
@@ -72,7 +73,7 @@ public class FeedbackCoinPushPullWorker {
             workingStep();
 
             try {
-                Thread.sleep((long) FeedbackCoinPushPullNode.RUNNING_INTERVAL);
+                Thread.sleep((long) GossipPushPullNode.RUNNING_INTERVAL);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;

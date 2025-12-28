@@ -1,13 +1,11 @@
-package epidemic_core.node.mode.pull.gossip.blind.coin;
+package epidemic_core.node.mode.pull.anti_entropy;
 
 import epidemic_core.message.common.MessageDispatcher;
-import epidemic_core.message.common.MessageId;
 import epidemic_core.message.common.MessageTopic;
 import epidemic_core.message.node_to_node.initial_request.InitialRequestMsg;
 import epidemic_core.message.node_to_node.request.RequestMsg;
 import epidemic_core.message.node_to_node.spread.SpreadMsg;
-import epidemic_core.node.GossipNode;
-import epidemic_core.node.mode.pull.gossip.GossipPullNode;
+import epidemic_core.node.mode.pull.general.components.WorkerInterface;
 import epidemic_core.node.mode.pull.general.fsm.pull_fsm.logic.PullFsm;
 import epidemic_core.node.mode.pull.general.fsm.pull_fsm.logic.output.PullFsmResult;
 import epidemic_core.node.mode.pull.general.fsm.reply_fsm.logic.ReplyFsm;
@@ -20,12 +18,9 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 
-// Worker for Blind Coin Pull protocol.
-// After sending a pull request, tosses a coin with probability 1/k.
-// If successful, the node stops making requests and spreading that message.
-public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general.components.WorkerInterface {
+public class AntiEntropyPullWorker implements WorkerInterface {
 
-    private BlindCoinPullNode node;
+    private AntiEntropyPullNode node;
 
     private BlockingQueue<String> replyMsgs;
     private List<String> newReplyMsgs;
@@ -41,19 +36,22 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
     private volatile boolean startSignal;
 
     private final Random rand = new Random();
-    private final double k; // Probability parameter: 1/k chance to stop spreading
 
-    public BlindCoinPullWorker(BlindCoinPullNode node, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs, BlockingQueue<String> startRoundMsgs, double k) {
+    public AntiEntropyPullWorker(AntiEntropyPullNode node, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs, BlockingQueue<String> startRoundMsgs) {
         this.node = node;
+
         this.replyMsgs = replyMsgs;
         this.newReplyMsgs = new ArrayList<>();
+
         this.requestMsgs = requestMsgs;
         this.newReqMsgs = new ArrayList<>();
+
         this.startRoundMsgs = startRoundMsgs;
+
         this.pullFsm = new PullFsm();
         this.replyFsm = new ReplyFsm();
+
         this.startSignal = false;
-        this.k = k;
     }
 
     public void workingStep() {
@@ -69,12 +67,13 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
             workingStep();
 
             try {
-                Thread.sleep((long) GossipPullNode.RUNNING_INTERVAL);
+                Thread.sleep((long) AntiEntropyPullNode.RUNNING_INTERVAL);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
             }
         }
+
     }
 
     public void setStartSignal(boolean startSignal) { this.startSignal = startSignal; }
@@ -90,6 +89,7 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
     //                  PULL FSM HANDLE                        //
     // ======================================================= //
     public void sendPullRequest() {
+
         // Get subscribed topics (interests)
         List<MessageTopic> subscribedTopics = node.getSubscribedTopics();
 
@@ -112,41 +112,18 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
                 InitialRequestMsg reqMsg = new InitialRequestMsg(node.getId());
                 String request = reqMsg.encode();
                 node.getCommunication().sendMessage(randNeighAdd, request);
-                // For InitialRequestMsg, we don't have a specific MessageId to remove, so no coin toss
             } else {
                 // We have a message for this topic, send RequestMsg with its MessageId
                 SpreadMsg storedMsg = statusForMsg.getMessage();
-                MessageId messageId = storedMsg.getId();
-                
-                // Check if this specific message (MessageId = topic + timestamp) has been removed (Blind Coin)
-                if (node.isMessageRemoved(messageId)) {
-                    // If removed, send InitialRequestMsg instead (act as if we don't have the message)
-                    // This allows the node to still receive updates if the message changes
-                    InitialRequestMsg reqMsg = new InitialRequestMsg(node.getId());
-                    String request = reqMsg.encode();
-                    node.getCommunication().sendMessage(randNeighAdd, request);
-                    continue;
-                }
-                
-                RequestMsg reqMsg = new RequestMsg(messageId, node.getId());
+                RequestMsg reqMsg = new RequestMsg(storedMsg.getId(), node.getId());
                 String request = reqMsg.encode();
                 node.getCommunication().sendMessage(randNeighAdd, request);
-                
-                // After sending request, toss coin with probability 1/k
-                // If successful (coin == true), remove this specific message
-                if (GossipNode.tossCoin(k)) {
-                    node.removeMessage(messageId);
-                    if (node.isRunning()) {
-                        System.out.println("[Node " + node.getId() + "] Blind Coin: Removed message '" + 
-                                messageId.topic().subject() + "' from source " + messageId.topic().sourceId() + 
-                                " (timestamp=" + messageId.timestamp() + ", k=" + k + ")");
-                    }
-                }
             }
         }
     }
 
     public void pullFsmHandle() {
+
         pullFsm.setStartSignal(startSignal);
         startSignal = false;
 
@@ -169,20 +146,8 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
                     if (decodedMsg instanceof SpreadMsg) {
                         SpreadMsg spreadMsg = (SpreadMsg) decodedMsg;
                         if(node.subscriptionCheck(spreadMsg.getId().topic())) {
-                            // Check if this message was previously removed (Blind Coin)
-                            MessageId msgId = spreadMsg.getId();
-                            if (node.isMessageRemoved(msgId)) {
-                                // Ignore this message - it was previously removed
-                                if (node.isRunning()) {
-                                    System.out.println("[Node " + node.getId() + "] Ignored removed message - subject '" + 
-                                            msgId.topic().subject() + "' from source " + msgId.topic().sourceId() + 
-                                            " (timestamp=" + msgId.timestamp() + ")");
-                                }
-                                continue;
-                            }
-                            
                             Boolean gotStored = node.storeOrIgnoreMessage(spreadMsg);
-                            if (!gotStored && node.isRunning()) {
+                            if (!gotStored) {
                                 System.out.println("[Node " + node.getId() + "] Ignored message - subject '" + spreadMsg.getId().topic().subject() + "' (older timestamp)");
                             }
                         }
@@ -198,6 +163,7 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
         if(result.pullReq) {
             sendPullRequest();
         }
+
     }
 
     // ======================================================= //
@@ -241,15 +207,10 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
 
                 if (neighAddress != null) {
                     // For InitialRequestMsg, send ALL stored messages (generic pull request)
-                    // But only send messages that are NOT removed
                     List<SpreadMsg> storedMessages = node.getAllStoredMessages();
                     for (SpreadMsg message : storedMessages) {
-                        MessageId msgId = message.getId();
-                        // Only send if message is not removed
-                        if (!node.isMessageRemoved(msgId)) {
-                            String stringMsg = message.encode();
-                            node.getCommunication().sendMessage(neighAddress, stringMsg);
-                        }
+                        String stringMsg = message.encode();
+                        node.getCommunication().sendMessage(neighAddress, stringMsg);
                     }
                 } else {
                     System.err.println("Warning: Neighbour " + neighId + " address not found");
@@ -262,6 +223,7 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
     }
 
     public void replyFsmHandle() {
+
         ReplyFsmResult result = replyFsm.step();
 
         if(result.checkReqMsgs) {
@@ -278,6 +240,7 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
                 sendPullReply(newReqMsgStr);
             }
         }
+
     }
 }
 
