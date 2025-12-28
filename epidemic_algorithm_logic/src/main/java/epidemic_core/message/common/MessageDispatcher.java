@@ -1,5 +1,6 @@
 package epidemic_core.message.common;
 
+import epidemic_core.message.node_to_node.feedback.FeedbackMsg;
 import epidemic_core.message.node_to_node.initial_request.InitialRequestMsg;
 import epidemic_core.message.node_to_node.request.RequestMsg;
 import epidemic_core.message.node_to_node.request_and_spread.RequestAndSpreadMsg;
@@ -25,6 +26,7 @@ public class MessageDispatcher {
                 case "request" -> RequestMsg.decode(raw);
                 case "initial_request" -> InitialRequestMsg.decode(raw);
                 case "request_and_spread" -> RequestAndSpreadMsg.decode(raw);
+                case "feedback" -> FeedbackMsg.decode(raw);
                 default -> throw new IllegalArgumentException("Unknown node_to_node message");
             };
 
@@ -78,6 +80,10 @@ public class MessageDispatcher {
 
     public static boolean isRequestAndSpread(String raw) {
         return isNodeToNode(raw) && "request_and_spread".equals(getMessageType(raw));
+    }
+
+    public static boolean isFeedback(String raw) {
+        return isNodeToNode(raw) && "feedback".equals(getMessageType(raw));
     }
     // ---------------------------------------------------------------------------------------------
 

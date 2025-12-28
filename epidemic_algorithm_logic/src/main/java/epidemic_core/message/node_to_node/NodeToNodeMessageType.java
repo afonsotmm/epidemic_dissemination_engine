@@ -4,5 +4,6 @@ public enum NodeToNodeMessageType {
     spread,
     initial_request,
     request,
-    request_and_spread
+    request_and_spread,
+    feedback
 }

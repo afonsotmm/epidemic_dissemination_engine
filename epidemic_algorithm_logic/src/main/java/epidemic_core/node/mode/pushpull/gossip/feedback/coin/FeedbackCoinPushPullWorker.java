@@ -1,8 +1,9 @@
-package epidemic_core.node.mode.pushpull.gossip.blind.coin;
+package epidemic_core.node.mode.pushpull.gossip.feedback.coin;
 
 import epidemic_core.message.common.MessageDispatcher;
 import epidemic_core.message.common.MessageId;
 import epidemic_core.message.common.MessageTopic;
+import epidemic_core.message.node_to_node.feedback.FeedbackMsg;
 import epidemic_core.message.node_to_node.initial_request.InitialRequestMsg;
 import epidemic_core.message.node_to_node.request.RequestMsg;
 import epidemic_core.message.node_to_node.request_and_spread.RequestAndSpreadMsg;
@@ -20,13 +21,14 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 
-// Worker for Blind Coin PushPull protocol.
-// After sending a pushpull request, tosses a coin with probability 1/k.
+// Worker for Feedback Coin PushPull protocol.
+// When receiving a request with MessageId that is already known, sends FeedbackMsg.
+// When receiving FeedbackMsg, tosses a coin with probability 1/k.
 // If successful, the node stops making requests and spreading that message.
 // If the message changes (new timestamp), it can propagate normally.
-public class BlindCoinPushPullWorker {
+public class FeedbackCoinPushPullWorker {
 
-    private BlindCoinPushPullNode node;
+    private FeedbackCoinPushPullNode node;
 
     private BlockingQueue<String> replyMsgs;
     private List<String> newReplyMsgs;
@@ -44,7 +46,7 @@ public class BlindCoinPushPullWorker {
     private final Random rand = new Random();
     private final double k; // Probability parameter: 1/k chance to stop spreading
 
-    public BlindCoinPushPullWorker(BlindCoinPushPullNode node, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs, BlockingQueue<String> startRoundMsgs, double k) {
+    public FeedbackCoinPushPullWorker(FeedbackCoinPushPullNode node, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs, BlockingQueue<String> startRoundMsgs, double k) {
         this.node = node;
         this.replyMsgs = replyMsgs;
         this.newReplyMsgs = new ArrayList<>();
@@ -70,7 +72,7 @@ public class BlindCoinPushPullWorker {
             workingStep();
 
             try {
-                Thread.sleep((long) BlindCoinPushPullNode.RUNNING_INTERVAL);
+                Thread.sleep((long) FeedbackCoinPushPullNode.RUNNING_INTERVAL);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
@@ -115,19 +117,13 @@ public class BlindCoinPushPullWorker {
                     InitialRequestMsg reqMsg = new InitialRequestMsg(node.getId());
                     String request = reqMsg.encode();
                     node.getCommunication().sendMessage(randNeighAdd, request);
-                    // For InitialRequestMsg, we don't have a specific MessageId to remove, so no coin toss
                 } else {
                     // We have a message for this topic, send RequestAndSpreadMsg with its MessageId
                     SpreadMsg storedMsg = statusForMsg.getMessage();
                     MessageId msgId = storedMsg.getId();
                     
-                    // Check if this specific message (MessageId = topic + timestamp) has been removed (Blind Coin)
+                    // Check if this specific message (MessageId = topic + timestamp) has been removed
                     if (node.isMessageRemoved(msgId)) {
-                        // If removed, send InitialRequestMsg instead (act as if we don't have the message)
-                        // This allows the node to still receive updates if the message changes
-                        InitialRequestMsg reqMsg = new InitialRequestMsg(node.getId());
-                        String request = reqMsg.encode();
-                        node.getCommunication().sendMessage(randNeighAdd, request);
                         continue;
                     }
                     
@@ -139,17 +135,7 @@ public class BlindCoinPushPullWorker {
                     
                     String requestAndSpreadString = requestAndSpreadMsg.encode();
                     node.getCommunication().sendMessage(randNeighAdd, requestAndSpreadString);
-                    
-                    // After sending request+spread, toss coin with probability 1/k
-                    // If successful (coin == true), remove this specific message
-                    if (GossipNode.tossCoin(k)) {
-                        node.removeMessage(msgId);
-                        if (node.isRunning()) {
-                            System.out.println("[Node " + node.getId() + "] Blind Coin: Removed message '" + 
-                                    msgId.topic().subject() + "' from source " + msgId.topic().sourceId() + 
-                                    " (timestamp=" + msgId.timestamp() + ", k=" + k + ")");
-                        }
-                    }
+                    // Note: No coin toss here - only when receiving FeedbackMsg
                 }
             }
         } else {
@@ -180,7 +166,7 @@ public class BlindCoinPushPullWorker {
                     if (decodedMsg instanceof SpreadMsg) {
                         SpreadMsg spreadMsg = (SpreadMsg) decodedMsg;
                         if(node.subscriptionCheck(spreadMsg.getId().topic())) {
-                            // Check if this message was previously removed (Blind Coin)
+                            // Check if this message was previously removed
                             MessageId msgId = spreadMsg.getId();
                             if (node.isMessageRemoved(msgId)) {
                                 // Ignore this message - it was previously removed
@@ -195,6 +181,24 @@ public class BlindCoinPushPullWorker {
                             Boolean gotStored = node.storeOrIgnoreMessage(spreadMsg);
                             if(!gotStored && node.isRunning()) {
                                 System.out.println("[Node " + node.getId() + "] Ignored message - subject '" + spreadMsg.getId().topic().subject() + "' (older timestamp)");
+                            }
+                        }
+                    } else if (decodedMsg instanceof FeedbackMsg) {
+                        // Handle FeedbackMsg - this is where we do the coin toss
+                        FeedbackMsg feedbackMsg = (FeedbackMsg) decodedMsg;
+                        MessageId msgId = feedbackMsg.getId();
+                        
+                        // Check if we still have this message (might have been removed already)
+                        if (!node.isMessageRemoved(msgId) && node.hasMessage(msgId.topic().subject(), msgId.topic().sourceId())) {
+                            // Toss coin with probability 1/k
+                            // If successful (coin == true), remove this specific message
+                            if (GossipNode.tossCoin(k)) {
+                                node.removeMessage(msgId);
+                                if (node.isRunning()) {
+                                    System.out.println("[Node " + node.getId() + "] Feedback Coin: Removed message '" + 
+                                            msgId.topic().subject() + "' from source " + msgId.topic().sourceId() + 
+                                            " (timestamp=" + msgId.timestamp() + ", k=" + k + ") after receiving feedback");
+                                }
                             }
                         }
                     }
@@ -272,11 +276,23 @@ public class BlindCoinPushPullWorker {
                         MessageId storedMsgId = storedMessage.getId();
                         long storedTimestamp = storedMsgId.timestamp();
 
-                        // Reply only if we have a more recent version AND it's not removed
-                        if (storedTimestamp > reqTimestamp && !node.isMessageRemoved(storedMsgId)) {
+                        // Handle different version scenarios
+                        if (storedTimestamp == reqTimestamp && !node.isMessageRemoved(storedMsgId)) {
+                            // Same version: send FeedbackMsg to indicate we already have this message
+                            FeedbackMsg feedbackMsg = new FeedbackMsg(reqMsgId);
+                            String feedbackString = feedbackMsg.encode();
+                            node.getCommunication().sendMessage(neighAddress, feedbackString);
+                            if (node.isRunning()) {
+                                System.out.println("[Node " + node.getId() + "] Feedback Coin: Sent feedback for message '" + 
+                                        reqSubject + "' from source " + reqSourceId + 
+                                        " (timestamp=" + reqTimestamp + ") to node " + neighId);
+                            }
+                        } else if (storedTimestamp > reqTimestamp && !node.isMessageRemoved(storedMsgId)) {
+                            // More recent version: send SpreadMsg to update the requestor
                             String stringMsg = storedMessage.encode();
                             node.getCommunication().sendMessage(neighAddress, stringMsg);
                         }
+                        // If we have older version, don't send anything (requestor already has newer version)
                     }
                 } else {
                     System.err.println("Warning: Neighbour " + neighId + " address not found");

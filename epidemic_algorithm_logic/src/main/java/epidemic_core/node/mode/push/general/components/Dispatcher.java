@@ -25,8 +25,10 @@ public class Dispatcher {
             try {
                 String consumedMsg = receivedMsgsQueue.take();
                 
-                // Only process node_to_node;spread messages
+                // Process node_to_node messages (spread and feedback)
                 if (MessageDispatcher.isSpread(consumedMsg)) {
+                    pushMsgs.put(consumedMsg);
+                } else if (MessageDispatcher.isFeedback(consumedMsg)) {
                     pushMsgs.put(consumedMsg);
                 } else if (MessageDispatcher.isStartRound(consumedMsg)) {
                     startRoundMsgs.put(consumedMsg);

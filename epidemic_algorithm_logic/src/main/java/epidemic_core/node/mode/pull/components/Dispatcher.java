@@ -31,6 +31,8 @@ public class Dispatcher {
                     requestMsgs.put(consumedMsg);
                 } else if (MessageDispatcher.isSpread(consumedMsg)) {
                     replyMsgs.put(consumedMsg);
+                } else if (MessageDispatcher.isFeedback(consumedMsg)) {
+                    replyMsgs.put(consumedMsg);
                 } else if (MessageDispatcher.isStartRound(consumedMsg)) {
                     startRoundMsgs.put(consumedMsg);
                 }
