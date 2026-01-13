@@ -161,7 +161,8 @@ public abstract class Node {
         InfectionUpdateMsg infectionUpdateMsg = new InfectionUpdateMsg(
                 msgId,
                 id,  // updated_node_id (this node)
-                infectingNodeId  // infecting_node_id (node that infected this one)
+                infectingNodeId,  // infecting_node_id (node that infected this one)
+                message.getData()  // data (message content)
             );
         
         String encodedMessage = infectionUpdateMsg.encode();
