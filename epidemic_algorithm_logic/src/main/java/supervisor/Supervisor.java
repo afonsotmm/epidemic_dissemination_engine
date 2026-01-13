@@ -56,7 +56,7 @@ public class Supervisor{
     public void startNetwork(StartMsg startMessage){
         this.startMessage = startMessage;
 
-        system = new NetworkEmulator(startMessage.getN(), startMessage.getSourceNodes(), startMessage.getTopology(), startMessage.getMode());
+        system = new NetworkEmulator(startMessage.getN(), startMessage.getSourceNodes(), startMessage.getTopology(), startMessage.getProtocol(), startMessage.getMode());
         system.initializeNetwork();
     }
     
