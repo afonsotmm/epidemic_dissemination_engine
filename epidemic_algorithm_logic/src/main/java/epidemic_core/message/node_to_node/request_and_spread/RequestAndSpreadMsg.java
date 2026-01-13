@@ -1,8 +1,16 @@
 package epidemic_core.message.node_to_node.request_and_spread;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import epidemic_core.message.common.Direction;
 import epidemic_core.message.common.MessageId;
 import epidemic_core.message.common.MessageTopic;
+import epidemic_core.message.node_to_node.NodeToNodeMessageType;
+import java.io.IOException;
 
+@JsonPropertyOrder({"direction", "messageType", "subject", "sourceId", "timestamp", "originId", "data"})
 public class RequestAndSpreadMsg {
 
     private final RequestAndSpreadHeader header;
@@ -10,15 +18,31 @@ public class RequestAndSpreadMsg {
     private final int originId;
     private final String data;
 
-    public RequestAndSpreadMsg(
-            MessageId id,
-            int originId,
-            String data
-    ) {
+    @JsonCreator
+    public RequestAndSpreadMsg(@JsonProperty("direction") String direction,
+                               @JsonProperty("messageType") String messageType,
+                               @JsonProperty("subject") String subject,
+                               @JsonProperty("sourceId") Integer sourceId,
+                               @JsonProperty("timestamp") Long timestamp,
+                               @JsonProperty("originId") int originId,
+                               @JsonProperty("data") String data) {
+        
+        if (direction != null && !Direction.node_to_node.toString().equals(direction)) {
+            throw new IllegalArgumentException("Invalid direction for RequestAndSpreadMsg: " + direction);
+        }
+        if (messageType != null && !NodeToNodeMessageType.request_and_spread.toString().equals(messageType)) {
+            throw new IllegalArgumentException("Invalid messageType for RequestAndSpreadMsg: " + messageType);
+        }
         this.header = new RequestAndSpreadHeader();
-        this.id = id;
         this.originId = originId;
         this.data = data;
+        
+        if (subject != null && sourceId != null && timestamp != null) {
+            MessageTopic topic = new MessageTopic(subject, sourceId);
+            this.id = new MessageId(topic, timestamp);
+        } else {
+            this.id = null;
+        }
     }
 
     // getters
@@ -27,37 +51,38 @@ public class RequestAndSpreadMsg {
     public int getOriginId() { return originId; }
     public String getData() { return data; }
 
-    // encode
-    public String encode() {
-        return  header.direction().toString() + ";"
-                + header.messageType().toString() + ";"
-                + id.topic().subject() + ";"
-                + id.timestamp() + ";"
-                + id.topic().sourceId() + ";"
-                + originId + ";"
-                + data;
+    @JsonProperty("direction")
+    public String getDirection() {
+        return header.direction().toString();
     }
 
-    // decode
-    public static RequestAndSpreadMsg decode(String raw) {
-        String[] parts = raw.split(";");
+    @JsonProperty("messageType")
+    public String getMessageType() {
+        return header.messageType().toString();
+    }
 
-        if (parts.length < 7) {
-            throw new IllegalArgumentException("Invalid RequestAndSpreadMsg");
-        }
+    @JsonProperty("subject")
+    public String getSubject() {
+        return id != null ? id.topic().subject() : null;
+    }
 
-        MessageTopic topic = new MessageTopic(
-                parts[2],
-                Integer.parseInt(parts[4])
-        );
-        MessageId id = new MessageId(
-                topic,
-                Long.parseLong(parts[3])
-        );
+    @JsonProperty("sourceId")
+    public Integer getSourceId() {
+        return id != null ? id.topic().sourceId() : null;
+    }
 
-        int originId = Integer.parseInt(parts[5]);
-        String data = parts[6];
+    @JsonProperty("timestamp")
+    public Long getTimestamp() {
+        return id != null ? id.timestamp() : null;
+    }
 
-        return new RequestAndSpreadMsg(id, originId, data);
+    public String encode() throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        return objectMapper.writeValueAsString(this);
+    }
+
+    public static RequestAndSpreadMsg decodeMessage(String jsonString) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        return objectMapper.readValue(jsonString, RequestAndSpreadMsg.class);
     }
 }

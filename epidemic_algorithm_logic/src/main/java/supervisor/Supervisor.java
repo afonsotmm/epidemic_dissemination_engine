@@ -1,6 +1,7 @@
 package supervisor;
 
-import epidemic_core.message.ui_to_supervisor.start_round.StartRoundMsg;
+import epidemic_core.message.ui_to_supervisor.end_system.EndMsg;
+import epidemic_core.message.ui_to_supervisor.start_system.StartMsg;
 import general.communication.Communication;
 import general.communication.implementation.UdpCommunication;
 import supervisor.communication.Dispatcher;
@@ -10,6 +11,11 @@ import supervisor.network_emulation.NetworkEmulator;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+
+/**
+ * Orchestrator responsible for managing communication infrastructure
+ * and controlling network topology initialization and lifecycle
+ */
 
 public class Supervisor{
 
@@ -24,7 +30,11 @@ public class Supervisor{
     private BlockingQueue<String> nodeQueue;
     private BlockingQueue<String> uiQueue;
 
-    private StartRoundMsg startMessage;
+    private Thread listenerThread;
+    private Thread dispatcherThread;
+    private Thread workerThread;
+
+    private StartMsg startMessage;
 
     public Supervisor(){
         // buffers:
@@ -43,16 +53,23 @@ public class Supervisor{
     }
 
     // initialize topology and nodes
-    public void startNetwork(StartRoundMsg startMessage){ // run in worker when it receives a START msg
+    public void startNetwork(StartMsg startMessage){
         this.startMessage = startMessage;
 
         system = new NetworkEmulator(startMessage.getN(), startMessage.getSourceNodes(), startMessage.getTopology(), startMessage.getMode());
         system.initializeNetwork();
     }
+    
+    // stop network
+    public void endNetwork(EndMsg endMessage){
+        if (system != null) {
+            system.stopNetwork();
+        }
+    }
 
     public void startSystem(){ // run in main
-        Thread.startVirtualThread(listener::listeningLoop);
-        Thread.startVirtualThread(dispatcher::dispatchingLoop);
-        Thread.startVirtualThread(worker::generalFsmLogic);
+        listenerThread = Thread.startVirtualThread(listener::listeningLoop);
+        dispatcherThread = Thread.startVirtualThread(dispatcher::dispatchingLoop);
+        workerThread = Thread.startVirtualThread(worker::generalFsmLogic);
     }
 }

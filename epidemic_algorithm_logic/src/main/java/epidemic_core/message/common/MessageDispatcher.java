@@ -1,62 +1,76 @@
 package epidemic_core.message.common;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import epidemic_core.message.node_to_node.initial_request.InitialRequestMsg;
 import epidemic_core.message.node_to_node.request.RequestMsg;
 import epidemic_core.message.node_to_node.request_and_spread.RequestAndSpreadMsg;
 import epidemic_core.message.node_to_node.spread.SpreadMsg;
 
+import java.io.IOException;
+
 public class MessageDispatcher {
 
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
     public static Object decode(String raw) {
-
-        String[] parts = raw.split(";");
-
-        if (parts.length < 2) {
-            throw new IllegalArgumentException("Invalid message");
+        // detect if it is JSON 
+        if (raw.trim().startsWith("{")) {
+            return decodeJson(raw);
+        } else {
+            throw new IllegalArgumentException("Use JSON format.");
         }
+    }
 
-        String direction = parts[0];
-        String type = parts[1];
+    private static Object decodeJson(String jsonString) {
+        try {
+            JsonNode jsonNode = objectMapper.readTree(jsonString);
+            String direction = jsonNode.has("direction") ? jsonNode.get("direction").asText() : null;
+            String messageType = jsonNode.has("messageType") ? jsonNode.get("messageType").asText() : null;
 
-        if (direction.equals("node_to_node")) {
+            if ("node_to_node".equals(direction)) {
+                return switch (messageType) {
+                    case "spread" -> SpreadMsg.decodeMessage(jsonString);
+                    case "request" -> RequestMsg.decodeMessage(jsonString);
+                    case "initial_request" -> InitialRequestMsg.decodeMessage(jsonString);
+                    case "request_and_spread" -> RequestAndSpreadMsg.decodeMessage(jsonString);
+                    default -> throw new IllegalArgumentException("Unknown node_to_node message type: " + messageType);
+                };
+            } else if ("supervisor_to_node".equals(direction)) {
+                return null;
+            } else if ("node_to_supervisor".equals(direction)) {
+                return null;
+            }
 
-            return switch (type) {
-                case "spread" -> SpreadMsg.decode(raw);
-                case "request" -> RequestMsg.decode(raw);
-                case "initial_request" -> InitialRequestMsg.decode(raw);
-                case "request_and_spread" -> RequestAndSpreadMsg.decode(raw);
-                default -> throw new IllegalArgumentException("Unknown node_to_node message");
-            };
-
-        } else if(direction.equals("supervisor_to_node")) {
-
-            return null;
-
-        } else if(direction.equals("node_to_supervisor")) {
-
-            return null;
-
+            throw new IllegalArgumentException("Unknown direction: " + direction);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Error parsing JSON message: " + e.getMessage(), e);
         }
-
-        throw new IllegalArgumentException("Unknown direction");
-
     }
 
     // Helper methods to check message type
     public static String getDirection(String raw) {
-        String[] parts = raw.split(";");
-        if (parts.length < 1) {
-            return null;
+        try {
+            if (raw.trim().startsWith("{")) {
+                JsonNode jsonNode = objectMapper.readTree(raw);
+                return jsonNode.has("direction") ? jsonNode.get("direction").asText() : null;
+            }
+        } catch (IOException e) {
+            
         }
-        return parts[0];
+        return null;
     }
 
     public static String getMessageType(String raw) {
-        String[] parts = raw.split(";");
-        if (parts.length < 2) {
-            return null;
+        try {
+            if (raw.trim().startsWith("{")) {
+                JsonNode jsonNode = objectMapper.readTree(raw);
+                return jsonNode.has("messageType") ? jsonNode.get("messageType").asText() : null;
+            }
+        } catch (IOException e) {
+
         }
-        return parts[1];
+        return null;
     }
 
     // -------------------------- Node to Node utils ----------------------------------------------
@@ -113,6 +127,10 @@ public class MessageDispatcher {
 
     public static boolean isRemotionUpdate(String raw){
         return isSupervisorToUi(raw) && "remotion_update".equals(getDirection(raw));
+    }
+
+    public static boolean isStructural(String raw){
+        return isSupervisorToUi(raw) && "structural".equals(getDirection(raw));
     }
 
     // ------------------------- UI to Supervisor utils ------------------------------------------

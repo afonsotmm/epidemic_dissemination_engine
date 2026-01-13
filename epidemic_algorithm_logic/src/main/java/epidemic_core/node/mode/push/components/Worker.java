@@ -92,8 +92,13 @@ public class Worker {
             // Send all stored messages to the random neighbour
             if (randNeighAdd != null) {
                 for (SpreadMsg message : storedMessages) {
-                    String stringMsg = message.encode();
-                    node.getCommunication().sendMessage(randNeighAdd, stringMsg);
+                    try {
+                        String stringMsg = message.encode();
+                        node.getCommunication().sendMessage(randNeighAdd, stringMsg);
+                    } catch (java.io.IOException e) {
+                        System.err.println("Error encoding SpreadMsg: " + e.getMessage());
+                        e.printStackTrace();
+                    }
                 }
             } else {
                 System.err.println("Warning: Neighbour " + randNeighId + " address not found");

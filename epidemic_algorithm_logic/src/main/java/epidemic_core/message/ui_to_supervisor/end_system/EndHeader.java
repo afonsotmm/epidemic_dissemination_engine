@@ -1,16 +1,16 @@
-package epidemic_core.message.ui_to_supervisor.end_round;
+package epidemic_core.message.ui_to_supervisor.end_system;
 
 import epidemic_core.message.common.Direction;
 import epidemic_core.message.ui_to_supervisor.UiToSupervisorMessageType;
 
-public record EndRoundHeader() {
+public record EndHeader() {
 
     public Direction direction() {
         return Direction.ui_to_supervisor;
     }
 
     public UiToSupervisorMessageType messageType() {
-        return UiToSupervisorMessageType.start_round;
+        return UiToSupervisorMessageType.end_system;
     }
 
 }

@@ -1,57 +1,89 @@
 package epidemic_core.message.node_to_supervisor.remotion_update;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import epidemic_core.message.common.Direction;
 import epidemic_core.message.common.MessageId;
 import epidemic_core.message.common.MessageTopic;
+import epidemic_core.message.node_to_supervisor.NodeToSupervisorMessageType;
 
+import java.io.IOException;
+
+@JsonPropertyOrder({"direction", "messageType", "updated_node_id", "subject", "sourceId", "timestamp"})
 public class RemotionUpdateMsg {
 
     private final RemotionUpdateHeader header;
     private final MessageId id;
     private final int updated_node_id;
 
-    public RemotionUpdateMsg(
-            MessageId id,
-            int updated_node_id
-    ) {
+    // Constructor from JSON (campos planos)
+    @JsonCreator
+    public RemotionUpdateMsg(@JsonProperty("direction") String direction,
+                              @JsonProperty("messageType") String messageType,
+                              @JsonProperty("updated_node_id") int updated_node_id,
+                              @JsonProperty("subject") String subject,
+                              @JsonProperty("sourceId") Integer sourceId,
+                              @JsonProperty("timestamp") Long timestamp) {
+        if (direction != null && !Direction.node_to_supervisor.toString().equals(direction)) {
+            throw new IllegalArgumentException("Invalid direction for RemotionUpdateMsg: " + direction);
+        }
+        if (messageType != null && !NodeToSupervisorMessageType.remotion_update.toString().equals(messageType)) {
+            throw new IllegalArgumentException("Invalid messageType for RemotionUpdateMsg: " + messageType);
+        }
         this.header = new RemotionUpdateHeader();
-        this.id = id;
         this.updated_node_id = updated_node_id;
+        
+        // Constroi MessageId a partir dos campos planos
+        if (subject != null && sourceId != null && timestamp != null) {
+            MessageTopic topic = new MessageTopic(subject, sourceId);
+            this.id = new MessageId(topic, timestamp);
+        } else {
+            this.id = null;
+        }
     }
 
-    // getters
+
+    // Getters
     public RemotionUpdateHeader getHeader() { return header; }
     public MessageId getId() { return id; }
+
+    @JsonProperty("direction")
+    public String getDirection() {
+        return header.direction().toString();
+    }
+
+    @JsonProperty("messageType")
+    public String getMessageType() {
+        return header.messageType().toString();
+    }
+
+    @JsonProperty("updated_node_id")
     public int getUpdatedNodeId() { return updated_node_id; }
 
-    public String encode() {
-        return  header.direction().toString() + ";"
-                + header.messageType().toString() + ";"
-                + id.topic().subject() + ";"
-                + id.timestamp() + ";"
-                + id.topic().sourceId() + ";"
-                + updated_node_id;
+    @JsonProperty("subject")
+    public String getSubject() {
+        return id != null ? id.topic().subject() : null;
     }
 
-    // decode
-    public static RemotionUpdateMsg decode(String raw) {
-        String[] parts = raw.split(";");
-
-        if (parts.length < 6) {
-            throw new IllegalArgumentException("Invalid SpreadMsg");
-        }
-
-        MessageTopic topic = new MessageTopic(
-                parts[2],
-                Integer.parseInt(parts[4])
-        );
-        MessageId id = new MessageId(
-                topic,
-                Long.parseLong(parts[3])
-        );
-
-        int updated_node_id = Integer.parseInt(parts[5]);
-
-        return new RemotionUpdateMsg(id, updated_node_id);
+    @JsonProperty("sourceId")
+    public Integer getSourceId() {
+        return id != null ? id.topic().sourceId() : null;
     }
 
+    @JsonProperty("timestamp")
+    public Long getTimestamp() {
+        return id != null ? id.timestamp() : null;
+    }
+
+    public String encode() throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        return objectMapper.writeValueAsString(this);
+    }
+
+    public static RemotionUpdateMsg decodeMessage(String jsonString) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        return objectMapper.readValue(jsonString, RemotionUpdateMsg.class);
+    }
 }

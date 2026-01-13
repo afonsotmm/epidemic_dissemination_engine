@@ -1,6 +1,8 @@
 package epidemic_core.node.mode.pushpull.components;
 
+import epidemic_core.message.common.Direction;
 import epidemic_core.message.common.MessageDispatcher;
+import epidemic_core.message.node_to_node.NodeToNodeMessageType;
 import epidemic_core.message.node_to_node.request_and_spread.RequestAndSpreadMsg;
 import epidemic_core.message.node_to_node.spread.SpreadMsg;
 
@@ -41,12 +43,21 @@ public class Dispatcher {
                             RequestAndSpreadMsg requestAndSpreadMsg = (RequestAndSpreadMsg) decodedMsg;
                             // Create a SpreadMsg from the RequestAndSpreadMsg
                             SpreadMsg spreadPart = new SpreadMsg(
-                                requestAndSpreadMsg.getId(),
+                                Direction.node_to_node.toString(),
+                                NodeToNodeMessageType.spread.toString(),
+                                requestAndSpreadMsg.getSubject(),
+                                requestAndSpreadMsg.getSourceId(),
+                                requestAndSpreadMsg.getTimestamp(),
                                 requestAndSpreadMsg.getOriginId(),
                                 requestAndSpreadMsg.getData()
                             );
-                            String spreadMsgString = spreadPart.encode();
-                            replyMsgs.put(spreadMsgString);
+                            try {
+                                String spreadMsgString = spreadPart.encode();
+                                replyMsgs.put(spreadMsgString);
+                            } catch (java.io.IOException e) {
+                                System.err.println("[Dispatcher] Error encoding SpreadMsg: " + e.getMessage());
+                                e.printStackTrace();
+                            }
                         }
                     } catch (Exception e) {
                         System.err.println("[Dispatcher] Error extracting SPREAD from RequestAndSpreadMsg: " + e.getMessage());

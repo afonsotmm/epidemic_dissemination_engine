@@ -5,10 +5,12 @@ import epidemic_core.node.mode.pull.PullNode;
 import epidemic_core.node.mode.push.PushNode;
 import epidemic_core.node.mode.pushpull.PushPullNode;
 import general.communication.utils.Address;
+import supervisor.network_emulation.neighbors_and_subject.NetworkStructureManager;
+import supervisor.network_emulation.neighbors_and_subject.NodeStructuralInfo;
+import supervisor.network_emulation.neighbors_and_subject.StructuralInfosMatrix;
 import supervisor.network_emulation.topology_creation.Topology;
 import supervisor.network_emulation.topology_creation.TopologyType;
 import supervisor.network_emulation.utils.NodeIdToAddressTable;
-import supervisor.network_emulation.utils.Subjects;
 
 import java.util.*;
 
@@ -20,12 +22,18 @@ public class NetworkEmulator {
     private Integer sourceNodes;
     private String topologyType;
     private String modeType;
+    private NetworkStructureManager networkStructureManager;
+    
+    private Map<Integer, Object> nodes; // Map<nodeId, Node>
+    private Map<Integer, Thread> nodeThreads; // Map<nodeId, Thread>
 
     public NetworkEmulator(Integer N, Integer sourceNodes, String topologyType, String modeType) {
         this.N = N;
         this.sourceNodes = sourceNodes;
         this.topologyType = topologyType;
         this.modeType = modeType;
+        this.nodes = new HashMap<>();
+        this.nodeThreads = new HashMap<>();
     }
 
     public void initializeNetwork()
@@ -37,35 +45,18 @@ public class NetworkEmulator {
         Topology topology = new Topology();
         Map<Integer, List<Integer>> adjMap = topology.createTopology(type, N);
 
+        // ========== Network Structure Management ==========
+        networkStructureManager = new NetworkStructureManager(adjMap, sourceNodes, N);
+
         NodeMode mode = NodeMode.fromString(modeType); // dissemination mode
 
-        // ========== assigned subjects ==========
-        Subjects[] allSubjects = Subjects.values();    // subjects possibilities
-
-            // ===== source nodes selection =====
-        sourceNodes = Math.min(sourceNodes, N);        // safety: sourceNodes <= N
-        Set<Integer> sourceNodesId = new HashSet<>();  // doesnt allow repetition
-
-        while (sourceNodesId.size() < sourceNodes) {
-            Random random = new Random();
-            int num = random.nextInt(N);
-            sourceNodesId.add(num);
-        }
-
         // ========== RUN ===========
-        Random random = new Random();
-
         for(int id = 0; id < N; id++){
-            List<Integer> neighbours = adjMap.get(id);
-            String subjectStr;
+            List<Integer> neighbours = networkStructureManager.getNeighbors(id);
+            String subjectStr = networkStructureManager.getSubjectForNode(id);
 
-            if(sourceNodesId.contains(id)){ // is source node
-                Subjects subject = allSubjects[random.nextInt(allSubjects.length)];
-                subjectStr = subject.name();
-            }
-            else{ subjectStr = null; } // doesnt have a subject
-
-            Thread.startVirtualThread(runMode(id, neighbours, subjectStr, infoTable, mode));
+            Thread nodeThread = runMode(id, neighbours, subjectStr, infoTable, mode);
+            nodeThreads.put(id, nodeThread);
         }
     }
 
@@ -78,11 +69,14 @@ public class NetworkEmulator {
         Object node;
 
         switch (mode) {
-            case PULL -> node = new PullNode(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, supervisorAddr);
-            //case PUSH -> node = new PushNode(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, pushInterval, supervisorAddr);
-            //case PUSHPULL -> node = new PushPullNode(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, supervisorAddr);
+            case PULL -> node = new PullNode(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable.getAll(), null, supervisorAddr);
+            //case PUSH -> node = new PushNode(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable.getAll(), null, supervisorAddr);
+            //case PUSHPULL -> node = new PushPullNode(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable.getAll(), null, supervisorAddr);
             default -> throw new IllegalArgumentException("Invalid mode: " + mode);
         }
+
+        // Guarda referência ao nó
+        nodes.put(id, node);
 
         Thread t = Thread.startVirtualThread(() -> {
 //            if (node instanceof PullNode pn) pn.startRunning();
@@ -93,6 +87,16 @@ public class NetworkEmulator {
 
         t.setName("Node-" + id);
         return t;
+    }
+    
+    // Stop all nodes
+    public void stopNetwork() {
+        for (Map.Entry<Integer, Thread> entry : nodeThreads.entrySet()) {
+            Thread nodeThread = entry.getValue();
+            if (nodeThread != null) {
+                nodeThread.interrupt();
+            }
+        }
     }
 
     public Address getSupervisorAddr() {

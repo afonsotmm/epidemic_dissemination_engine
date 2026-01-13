@@ -5,6 +5,10 @@ import supervisor.Supervisor;
 
 import java.util.concurrent.BlockingQueue;
 
+/**	
+ * Responsible for receiving messages from the communication layer and putting them in the msgsQueue
+ */
+
 public class Listener {
     private BlockingQueue<String> msgsQueue;
     private Communication communication;
@@ -15,14 +19,17 @@ public class Listener {
     }
 
     public void listeningLoop() {
-        String receivedMsg = communication.receiveMessage();
-        if (receivedMsg != null) {
-            try {
-                msgsQueue.put(receivedMsg);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+        while (true) {
+            String receivedMsg = communication.receiveMessage();
+            if (receivedMsg != null) {
+                try {
+                    msgsQueue.put(receivedMsg);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
+            Thread.onSpinWait();
         }
-        Thread.onSpinWait();
     }
 }
