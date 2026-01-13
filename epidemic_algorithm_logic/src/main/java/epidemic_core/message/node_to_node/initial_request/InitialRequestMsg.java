@@ -14,7 +14,7 @@ public class InitialRequestMsg {
     private final InitialRequestHeader header;
     private final int originId;
 
-    // Constructor from JSON
+    // Constructor
     @JsonCreator
     public InitialRequestMsg(@JsonProperty("direction") String direction,
                              @JsonProperty("messageType") String messageType,

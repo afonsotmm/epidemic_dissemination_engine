@@ -1,8 +1,10 @@
 package epidemic_core.node.mode.pull.gossip.feedback.coin;
 
+import epidemic_core.message.common.Direction;
 import epidemic_core.message.common.MessageDispatcher;
 import epidemic_core.message.common.MessageId;
 import epidemic_core.message.common.MessageTopic;
+import epidemic_core.message.node_to_node.NodeToNodeMessageType;
 import epidemic_core.message.node_to_node.feedback.FeedbackMsg;
 import epidemic_core.message.node_to_node.initial_request.InitialRequestMsg;
 import epidemic_core.message.node_to_node.request.RequestMsg;
@@ -111,9 +113,18 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
             
             // if we have no message with a subscribed topic we send a "InitialRequestMsg"
             if(statusForMsg == null){
-                InitialRequestMsg reqMsg = new InitialRequestMsg(node.getId());
-                String request = reqMsg.encode();
-                node.getCommunication().sendMessage(randNeighAdd, request);
+                InitialRequestMsg reqMsg = new InitialRequestMsg(
+                    Direction.node_to_node.toString(),
+                    NodeToNodeMessageType.initial_request.toString(),
+                    node.getId()
+                );
+                try {
+                    String request = reqMsg.encode();
+                    node.getCommunication().sendMessage(randNeighAdd, request);
+                } catch (java.io.IOException e) {
+                    System.err.println("Error encoding InitialRequestMsg: " + e.getMessage());
+                    e.printStackTrace();
+                }
             } else {
                 // We have a message for this topic, send RequestMsg with its MessageId
                 SpreadMsg storedMsg = statusForMsg.getMessage();
@@ -125,9 +136,21 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
                     continue;
                 }
                 
-                RequestMsg reqMsg = new RequestMsg(messageId, node.getId());
-                String request = reqMsg.encode();
-                node.getCommunication().sendMessage(randNeighAdd, request);
+                RequestMsg reqMsg = new RequestMsg(
+                    Direction.node_to_node.toString(),
+                    NodeToNodeMessageType.request.toString(),
+                    messageId.topic().subject(),
+                    messageId.topic().sourceId(),
+                    messageId.timestamp(),
+                    node.getId()
+                );
+                try {
+                    String request = reqMsg.encode();
+                    node.getCommunication().sendMessage(randNeighAdd, request);
+                } catch (java.io.IOException e) {
+                    System.err.println("Error encoding RequestMsg: " + e.getMessage());
+                    e.printStackTrace();
+                }
                 // Note: No coin toss here - only when receiving FeedbackMsg
             }
         }

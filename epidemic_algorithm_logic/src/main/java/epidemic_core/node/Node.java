@@ -1,7 +1,9 @@
 package epidemic_core.node;
 
+import epidemic_core.message.common.Direction;
 import epidemic_core.message.common.MessageId;
 import epidemic_core.message.common.MessageTopic;
+import epidemic_core.message.node_to_node.NodeToNodeMessageType;
 import epidemic_core.message.node_to_node.spread.SpreadMsg;
 import epidemic_core.node.msg_related.NodeRole;
 import epidemic_core.node.msg_related.NodeStatus;
@@ -265,7 +267,15 @@ public abstract class Node {
         String data = randomDataGenerator(assignedSubjectAsSource);
         MessageTopic topic = new MessageTopic(assignedSubjectAsSource, id);
         MessageId messageId = new MessageId(topic, 0);
-        SpreadMsg message = new SpreadMsg(messageId, id, data);
+        SpreadMsg message = new SpreadMsg(
+            Direction.node_to_node.toString(),
+            NodeToNodeMessageType.spread.toString(),
+            messageId.topic().subject(),
+            messageId.topic().sourceId(),
+            messageId.timestamp(),
+            id, // originId
+            data
+        );
 
         //Store
         storeOrIgnoreMessage(message, NodeRole.SOURCE);

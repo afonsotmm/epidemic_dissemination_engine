@@ -1,8 +1,10 @@
 package epidemic_core.node.mode.pushpull.gossip.blind.coin;
 
+import epidemic_core.message.common.Direction;
 import epidemic_core.message.common.MessageDispatcher;
 import epidemic_core.message.common.MessageId;
 import epidemic_core.message.common.MessageTopic;
+import epidemic_core.message.node_to_node.NodeToNodeMessageType;
 import epidemic_core.message.node_to_node.initial_request.InitialRequestMsg;
 import epidemic_core.message.node_to_node.request.RequestMsg;
 import epidemic_core.message.node_to_node.request_and_spread.RequestAndSpreadMsg;
@@ -113,9 +115,18 @@ public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull
                 
                 // if we have no message with a subscribed topic we send a "InitialRequestMsg"
                 if(statusForMsg == null){
-                    InitialRequestMsg reqMsg = new InitialRequestMsg(node.getId());
-                    String request = reqMsg.encode();
-                    node.getCommunication().sendMessage(randNeighAdd, request);
+                    InitialRequestMsg reqMsg = new InitialRequestMsg(
+                        Direction.node_to_node.toString(),
+                        NodeToNodeMessageType.initial_request.toString(),
+                        node.getId()
+                    );
+                    try {
+                        String request = reqMsg.encode();
+                        node.getCommunication().sendMessage(randNeighAdd, request);
+                    } catch (java.io.IOException e) {
+                        System.err.println("Error encoding InitialRequestMsg: " + e.getMessage());
+                        e.printStackTrace();
+                    }
                     // For InitialRequestMsg, we don't have a specific MessageId to remove, so no coin toss
                 } else {
                     // We have a message for this topic, send RequestAndSpreadMsg with its MessageId
@@ -126,20 +137,38 @@ public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull
                     if (node.isMessageRemoved(msgId)) {
                         // If removed, send InitialRequestMsg instead (act as if we don't have the message)
                         // This allows the node to still receive updates if the message changes
-                        InitialRequestMsg reqMsg = new InitialRequestMsg(node.getId());
-                        String request = reqMsg.encode();
-                        node.getCommunication().sendMessage(randNeighAdd, request);
+                        InitialRequestMsg reqMsg = new InitialRequestMsg(
+                            Direction.node_to_node.toString(),
+                            NodeToNodeMessageType.initial_request.toString(),
+                            node.getId()
+                        );
+                        try {
+                            String request = reqMsg.encode();
+                            node.getCommunication().sendMessage(randNeighAdd, request);
+                        } catch (java.io.IOException e) {
+                            System.err.println("Error encoding InitialRequestMsg: " + e.getMessage());
+                            e.printStackTrace();
+                        }
                         continue;
                     }
                     
                     RequestAndSpreadMsg requestAndSpreadMsg = new RequestAndSpreadMsg(
-                        msgId,
+                        Direction.node_to_node.toString(),
+                        NodeToNodeMessageType.request_and_spread.toString(),
+                        msgId.topic().subject(),
+                        msgId.topic().sourceId(),
+                        msgId.timestamp(),
                         node.getId(),
                         storedMsg.getData()
                     );
                     
-                    String requestAndSpreadString = requestAndSpreadMsg.encode();
-                    node.getCommunication().sendMessage(randNeighAdd, requestAndSpreadString);
+                    try {
+                        String requestAndSpreadString = requestAndSpreadMsg.encode();
+                        node.getCommunication().sendMessage(randNeighAdd, requestAndSpreadString);
+                    } catch (java.io.IOException e) {
+                        System.err.println("Error encoding RequestAndSpreadMsg: " + e.getMessage());
+                        e.printStackTrace();
+                    }
                     
                     // After sending request+spread, toss coin with probability 1/k
                     // If successful (coin == true), remove this specific message

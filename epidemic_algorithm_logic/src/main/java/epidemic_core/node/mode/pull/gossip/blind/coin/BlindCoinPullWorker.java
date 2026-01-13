@@ -1,8 +1,10 @@
 package epidemic_core.node.mode.pull.gossip.blind.coin;
 
+import epidemic_core.message.common.Direction;
 import epidemic_core.message.common.MessageDispatcher;
 import epidemic_core.message.common.MessageId;
 import epidemic_core.message.common.MessageTopic;
+import epidemic_core.message.node_to_node.NodeToNodeMessageType;
 import epidemic_core.message.node_to_node.initial_request.InitialRequestMsg;
 import epidemic_core.message.node_to_node.request.RequestMsg;
 import epidemic_core.message.node_to_node.spread.SpreadMsg;
@@ -109,9 +111,18 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
             
             // if we have no message with a subscribed topic we send a "InitialRequestMsg"
             if(statusForMsg == null){
-                InitialRequestMsg reqMsg = new InitialRequestMsg(node.getId());
-                String request = reqMsg.encode();
-                node.getCommunication().sendMessage(randNeighAdd, request);
+                InitialRequestMsg reqMsg = new InitialRequestMsg(
+                    Direction.node_to_node.toString(),
+                    NodeToNodeMessageType.initial_request.toString(),
+                    node.getId()
+                );
+                try {
+                    String request = reqMsg.encode();
+                    node.getCommunication().sendMessage(randNeighAdd, request);
+                } catch (java.io.IOException e) {
+                    System.err.println("Error encoding InitialRequestMsg: " + e.getMessage());
+                    e.printStackTrace();
+                }
                 // For InitialRequestMsg, we don't have a specific MessageId to remove, so no coin toss
             } else {
                 // We have a message for this topic, send RequestMsg with its MessageId
@@ -122,15 +133,36 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
                 if (node.isMessageRemoved(messageId)) {
                     // If removed, send InitialRequestMsg instead (act as if we don't have the message)
                     // This allows the node to still receive updates if the message changes
-                    InitialRequestMsg reqMsg = new InitialRequestMsg(node.getId());
-                    String request = reqMsg.encode();
-                    node.getCommunication().sendMessage(randNeighAdd, request);
+                    InitialRequestMsg reqMsg = new InitialRequestMsg(
+                        Direction.node_to_node.toString(),
+                        NodeToNodeMessageType.initial_request.toString(),
+                        node.getId()
+                    );
+                    try {
+                        String request = reqMsg.encode();
+                        node.getCommunication().sendMessage(randNeighAdd, request);
+                    } catch (java.io.IOException e) {
+                        System.err.println("Error encoding InitialRequestMsg: " + e.getMessage());
+                        e.printStackTrace();
+                    }
                     continue;
                 }
                 
-                RequestMsg reqMsg = new RequestMsg(messageId, node.getId());
-                String request = reqMsg.encode();
-                node.getCommunication().sendMessage(randNeighAdd, request);
+                RequestMsg reqMsg = new RequestMsg(
+                    Direction.node_to_node.toString(),
+                    NodeToNodeMessageType.request.toString(),
+                    messageId.topic().subject(),
+                    messageId.topic().sourceId(),
+                    messageId.timestamp(),
+                    node.getId()
+                );
+                try {
+                    String request = reqMsg.encode();
+                    node.getCommunication().sendMessage(randNeighAdd, request);
+                } catch (java.io.IOException e) {
+                    System.err.println("Error encoding RequestMsg: " + e.getMessage());
+                    e.printStackTrace();
+                }
                 
                 // After sending request, toss coin with probability 1/k
                 // If successful (coin == true), remove this specific message
