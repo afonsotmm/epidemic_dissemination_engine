@@ -1,17 +1,15 @@
 package epidemic_core.node;
 
-import epidemic_core.message.common.Direction;
 import epidemic_core.message.common.MessageId;
 import epidemic_core.message.common.MessageTopic;
 import epidemic_core.message.node_to_node.spread.SpreadMsg;
-import epidemic_core.message.node_to_supervisor.NodeToSupervisorMessageType;
-import epidemic_core.message.node_to_supervisor.infection_update.InfectionUpdateMsg;
 import epidemic_core.node.msg_related.NodeRole;
 import epidemic_core.node.msg_related.NodeStatus;
 import epidemic_core.node.msg_related.StatusForMessage;
 import general.communication.Communication;
 import general.communication.implementation.UdpCommunication;
 import general.communication.utils.Address;
+import epidemic_core.message.node_to_supervisor.infection_update.InfectionUpdateMsg;
 
 import java.util.ArrayList;
 import java.util.Map;
@@ -19,22 +17,27 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 
-//  TODO: Gossip
 
-public class Node {
+// Abstract base class for all Node types.
+// Contains common functionality for message storage, subscription management, and so on .
 
-    private Integer id;
-    private List<Integer> neighbours;
-    private String assignedSubjectAsSource; // e.g: "temperature"; "none" (if it's not source of any msg) etc
-    private Map<Integer, Address> nodeIdToAddressTable; // also includes the supervisor address
-    private Address supervisorAddress;
-    private Communication communication;
+public abstract class Node {
+
+    protected Integer id;
+    protected List<Integer> neighbours;
+    protected String assignedSubjectAsSource;
+    protected Map<Integer, Address> nodeIdToAddressTable;
+    protected Address supervisorAddress;
+    protected Communication communication;
 
     // Subject+SourceId that this node has interest
-    private List<MessageTopic> subscribedTopics;
+    protected List<MessageTopic> subscribedTopics;
 
     // Stored by MessageId and includes the Status & Role of the node relative to that msg
-    private Map<MessageId, StatusForMessage> storedMessages;
+    protected Map<MessageId, StatusForMessage> storedMessages;
+    
+    // Flag to control if node is still running (to stop logs after convergence)
+    protected volatile boolean isRunning;
 
     // Constructor
     public Node(Integer id,
@@ -52,6 +55,7 @@ public class Node {
         this.subscribedTopics = subscribedTopics != null ? new ArrayList<>(subscribedTopics) : new ArrayList<>();
         this.storedMessages = new ConcurrentHashMap<>();
         this.communication = new UdpCommunication();
+        this.isRunning = true; // Node starts as running
 
         // Initialize the socket to listen for incoming messages
         Address myAddress = nodeIdToAddressTable.get(id);
@@ -152,26 +156,17 @@ public class Node {
 
     // Sends a notification to supervisor about the Node's current status related to a given message
     public void notifyStatusSupervisor(NodeStatus statusToNotify, SpreadMsg message, int infectingNodeId) {
-        // Create InfectionUpdateMsg usando construtor JSON
+        // Create InfectionUpdateMsg
         MessageId msgId = message.getId();
         InfectionUpdateMsg infectionUpdateMsg = new InfectionUpdateMsg(
-                Direction.node_to_supervisor.toString(),
-                NodeToSupervisorMessageType.infection_update.toString(),
+                msgId,
                 id,  // updated_node_id (this node)
                 infectingNodeId,  // infecting_node_id (node that infected this one)
-                msgId.topic().subject(),
-                msgId.topic().sourceId(),
-                msgId.timestamp(),
-                message.getData()
+                message.getData()  // data (message content)
             );
         
-        try {
-            String encodedMessage = infectionUpdateMsg.encode();
-            communication.sendMessage(supervisorAddress, encodedMessage);
-        } catch (java.io.IOException e) {
-            System.err.println("Error encoding InfectionUpdateMsg: " + e.getMessage());
-            e.printStackTrace();
-        }
+        String encodedMessage = infectionUpdateMsg.encode();
+        communication.sendMessage(supervisorAddress, encodedMessage);
     }
     
     // Overloaded method for backward compatibility (when node is SOURCE, it infects itself)
@@ -205,14 +200,16 @@ public class Node {
         // Store the new message by MessageId
         storedMessages.put(msgId, newMessage);
 
-        if(role == NodeRole.FORWARDER) {
-        // Log: Node stored/updated message
-        System.out.println("[Node " + id + "] Stored/Updated subject '" + receivedSubject +
-                "' with value: " + message.getData() + " (timestamp: " + receivedTimeStamp + ", sourceId: " + sourceId + ")");
-        } else if(role == NodeRole.SOURCE) {
-            // Log: Node generated message as SOURCE
-            System.out.println("[Node " + id + "] Generated as SOURCE - subject '" + assignedSubjectAsSource +
-                    "' with value: " +  message.getData());
+        if (isRunning) {
+            if(role == NodeRole.FORWARDER) {
+            // Log: Node stored/updated message
+            System.out.println("[Node " + id + "] Stored/Updated subject '" + receivedSubject +
+                    "' with value: " + message.getData() + " (timestamp: " + receivedTimeStamp + ", sourceId: " + sourceId + ")");
+            } else if(role == NodeRole.SOURCE) {
+                // Log: Node generated message as SOURCE
+                System.out.println("[Node " + id + "] Generated as SOURCE - subject '" + assignedSubjectAsSource +
+                        "' with value: " +  message.getData());
+            }
         }
 
         // If SOURCE, infecting node is itself; otherwise use the provided infectingNodeId
@@ -268,15 +265,7 @@ public class Node {
         String data = randomDataGenerator(assignedSubjectAsSource);
         MessageTopic topic = new MessageTopic(assignedSubjectAsSource, id);
         MessageId messageId = new MessageId(topic, 0);
-        SpreadMsg message = new SpreadMsg(
-            Direction.node_to_node.toString(),
-            NodeToNodeMessageType.spread.toString(),
-            messageId.topic().subject(),
-            messageId.topic().sourceId(),
-            messageId.timestamp(),
-            id, // originId
-            data
-        );
+        SpreadMsg message = new SpreadMsg(messageId, id, data);
 
         //Store
         storeOrIgnoreMessage(message, NodeRole.SOURCE);
@@ -317,7 +306,9 @@ public class Node {
     }
 
     // Get subscribed topics (interests)
-    public List<MessageTopic> getSubscribedTopics() { return subscribedTopics; }
+    public List<MessageTopic> getSubscribedTopics() { 
+        return new ArrayList<>(subscribedTopics); // Return defensive copy
+    }
 
     public boolean subscriptionCheck(MessageTopic topic) {
         for(MessageTopic subsTopic : subscribedTopics) {
@@ -331,7 +322,7 @@ public class Node {
 
     // Print current state of all subjects stored in this node
     public void printNodeState() {
-        if (!storedMessages.isEmpty()) {
+        if (isRunning && !storedMessages.isEmpty()) {
             System.out.println("[Node " + id + "] Current subjects:");
             for (Map.Entry<MessageId, StatusForMessage> entry : storedMessages.entrySet()) {
                 MessageId msgId = entry.getKey();
@@ -342,6 +333,15 @@ public class Node {
             }
         }
     }
+    
+    // Stop the node (set flag to false)
+    public void stop() {
+        this.isRunning = false;
+    }
+    
+    // Check if node is still running
+    public boolean isRunning() {
+        return isRunning;
+    }
 
 }
-

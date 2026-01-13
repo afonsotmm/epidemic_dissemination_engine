@@ -1,0 +1,148 @@
+@startuml
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam nodesep 15
+skinparam ranksep 20
+
+' ============================================
+' MESSAGES
+' ============================================
+package "Messages" {
+    record MessageTopic {
+        + String subject
+        + int sourceId
+    }
+    
+    record MessageId {
+        + MessageTopic topic
+        + long timestamp
+    }
+    
+    class SpreadMsg
+    class RequestMsg
+    class FeedbackMsg
+}
+
+' ============================================
+' NODES
+' ============================================
+package "Nodes" {
+    abstract class Node {
+        # Integer id
+        # Map<MessageId, StatusForMessage> storedMessages
+        # volatile boolean isRunning
+        
+        + hasMessage(String, int): Boolean
+        + subscriptionCheck(MessageTopic): Boolean
+        + storeOrIgnoreMessage(SpreadMsg): Boolean
+        + isRunning(): boolean
+        + stop(): void
+    }
+    
+    abstract class GossipNode {
+        # Set<MessageId> removedMessages
+        
+        + isMessageRemoved(MessageId): boolean
+        + removeMessage(MessageId): void
+        + {static} tossCoin(double): boolean
+    }
+    
+    ' Push
+    class AntiEntropyPushNode {
+        + startRunning(): void
+        + stopRunning(): void
+    }
+    
+    abstract class GossipPushNode {
+        + startRunning(): void
+        + stopRunning(): void
+    }
+    
+    class BlindCoinPushNode {
+        - double k
+    }
+    
+    class FeedbackCoinPushNode {
+        - double k
+    }
+    
+    ' Pull
+    class PullNode {
+        + startRunning(): void
+        + stopRunning(): void
+    }
+    
+    class BlindCoinPullNode {
+        - double k
+    }
+    
+    class FeedbackCoinPullNode {
+        - double k
+    }
+    
+    ' PushPull
+    class PushPullNode {
+        + startRunning(): void
+        + stopRunning(): void
+    }
+    
+    class BlindCoinPushPullNode {
+        - double k
+    }
+    
+    class FeedbackCoinPushPullNode {
+        - double k
+    }
+}
+
+' ============================================
+' WORKERS
+' ============================================
+package "Workers" {
+    interface WorkerInterface {
+        + workingLoop(): void
+    }
+    
+    class AntiEntropyPushWorker
+    class BlindCoinPushWorker
+    class FeedbackCoinPushWorker
+    class BlindCoinPullWorker
+    class FeedbackCoinPullWorker
+    class BlindCoinPushPullWorker
+    class FeedbackCoinPushPullWorker
+}
+
+' ============================================
+' RELATIONSHIPS
+' ============================================
+Node <|-- GossipNode
+Node <|-- AntiEntropyPushNode
+Node <|-- PullNode
+Node <|-- PushPullNode
+GossipNode <|-- GossipPushNode
+GossipNode <|-- BlindCoinPullNode
+GossipNode <|-- FeedbackCoinPullNode
+GossipNode <|-- BlindCoinPushPullNode
+GossipNode <|-- FeedbackCoinPushPullNode
+GossipPushNode <|-- BlindCoinPushNode
+GossipPushNode <|-- FeedbackCoinPushNode
+
+WorkerInterface <|.. AntiEntropyPushWorker
+WorkerInterface <|.. BlindCoinPushWorker
+WorkerInterface <|.. FeedbackCoinPushWorker
+
+Node "1" *-- "many" MessageId : storedMessages
+GossipNode "1" *-- "many" MessageId : removedMessages
+MessageId "1" *-- "1" MessageTopic : topic
+
+AntiEntropyPushNode "1" *-- "1" AntiEntropyPushWorker
+GossipPushNode "1" *-- "1" WorkerInterface
+BlindCoinPushNode "1" *-- "1" BlindCoinPushWorker
+FeedbackCoinPushNode "1" *-- "1" FeedbackCoinPushWorker
+BlindCoinPullNode "1" *-- "1" BlindCoinPullWorker
+FeedbackCoinPullNode "1" *-- "1" FeedbackCoinPullWorker
+BlindCoinPushPullNode "1" *-- "1" BlindCoinPushPullWorker
+FeedbackCoinPushPullNode "1" *-- "1" FeedbackCoinPushPullWorker
+
+@enduml
