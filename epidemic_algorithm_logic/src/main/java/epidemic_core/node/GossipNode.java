@@ -1,10 +1,13 @@
 package epidemic_core.node;
 
+import epidemic_core.message.common.Direction;
 import epidemic_core.message.common.MessageId;
 import epidemic_core.message.common.MessageTopic;
+import epidemic_core.message.node_to_supervisor.NodeToSupervisorMessageType;
 import epidemic_core.message.node_to_supervisor.remotion_update.RemotionUpdateMsg;
 import general.communication.utils.Address;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -52,12 +55,21 @@ public abstract class GossipNode extends Node {
     // Notify supervisor that this node has removed a message (for Gossip protocols)
     private void notifyRemotionSupervisor(MessageId messageId) {
         RemotionUpdateMsg remotionUpdateMsg = new RemotionUpdateMsg(
-                messageId,
-                id  // updated_node_id (this node)
+                Direction.node_to_supervisor.toString(),
+                NodeToSupervisorMessageType.remotion_update.toString(),
+                id,  // updated_node_id (this node)
+                messageId.topic().subject(),
+                messageId.topic().sourceId(),
+                messageId.timestamp()
         );
         
-        String encodedMessage = remotionUpdateMsg.encode();
-        communication.sendMessage(supervisorAddress, encodedMessage);
+        try {
+            String encodedMessage = remotionUpdateMsg.encode();
+            communication.sendMessage(supervisorAddress, encodedMessage);
+        } catch (IOException e) {
+            System.err.println("Error encoding RemotionUpdateMsg: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     // Coin variant: Toss a coin with 1/k probability of returning true

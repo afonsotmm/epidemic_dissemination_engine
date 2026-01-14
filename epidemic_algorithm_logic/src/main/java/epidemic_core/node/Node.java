@@ -5,14 +5,16 @@ import epidemic_core.message.common.MessageId;
 import epidemic_core.message.common.MessageTopic;
 import epidemic_core.message.node_to_node.NodeToNodeMessageType;
 import epidemic_core.message.node_to_node.spread.SpreadMsg;
+import epidemic_core.message.node_to_supervisor.NodeToSupervisorMessageType;
+import epidemic_core.message.node_to_supervisor.infection_update.InfectionUpdateMsg;
 import epidemic_core.node.msg_related.NodeRole;
 import epidemic_core.node.msg_related.NodeStatus;
 import epidemic_core.node.msg_related.StatusForMessage;
 import general.communication.Communication;
 import general.communication.implementation.UdpCommunication;
 import general.communication.utils.Address;
-import epidemic_core.message.node_to_supervisor.infection_update.InfectionUpdateMsg;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.List;
@@ -161,14 +163,23 @@ public abstract class Node {
         // Create InfectionUpdateMsg
         MessageId msgId = message.getId();
         InfectionUpdateMsg infectionUpdateMsg = new InfectionUpdateMsg(
-                msgId,
+                Direction.node_to_supervisor.toString(),
+                NodeToSupervisorMessageType.infection_update.toString(),
                 id,  // updated_node_id (this node)
                 infectingNodeId,  // infecting_node_id (node that infected this one)
+                msgId.topic().subject(),
+                msgId.topic().sourceId(),
+                msgId.timestamp(),
                 message.getData()  // data (message content)
             );
         
-        String encodedMessage = infectionUpdateMsg.encode();
-        communication.sendMessage(supervisorAddress, encodedMessage);
+        try {
+            String encodedMessage = infectionUpdateMsg.encode();
+            communication.sendMessage(supervisorAddress, encodedMessage);
+        } catch (IOException e) {
+            System.err.println("Error encoding InfectionUpdateMsg: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
     
     // Overloaded method for backward compatibility (when node is SOURCE, it infects itself)
