@@ -1,9 +1,14 @@
 package supervisor.communication;
 
 import epidemic_core.message.common.Direction;
+import epidemic_core.message.node_to_supervisor.NodeToSupervisorMessageType;
+import epidemic_core.message.node_to_supervisor.infection_update.InfectionUpdateMsg;
+import epidemic_core.message.node_to_supervisor.remotion_update.RemotionUpdateMsg;
+import epidemic_core.message.supervisor_to_ui.SupervisorToUiMessageType;
 import epidemic_core.message.ui_to_supervisor.UiToSupervisorMessageType;
 import epidemic_core.message.ui_to_supervisor.end_system.EndMsg;
 import epidemic_core.message.ui_to_supervisor.start_system.StartMsg;
+import general.communication.utils.Address;
 import general.fsm.FiniteStateMachine;
 import supervisor.Supervisor;
 
@@ -50,7 +55,7 @@ public class Worker {
 
             // Compute actions
             if(generalFsm.getState() == CommsStates.MONITOR) {
-                manageNodeMessages();
+                manageNodeMessages(nodeMsg);
             }
 
             else if(generalFsm.getState() == CommsStates.CONTROL) { // messages from UI
@@ -61,8 +66,66 @@ public class Worker {
         }
     }
 
-    public void manageNodeMessages(){
-
+    public void manageNodeMessages(String msg){
+        if (msg == null) return;
+        
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode jsonNode = objectMapper.readTree(msg);
+            
+            String direction = jsonNode.has("direction") ? jsonNode.get("direction").asText() : null;
+            String messageType = jsonNode.has("messageType") ? jsonNode.get("messageType").asText() : null;
+            
+            Address uiAddress = supervisor.getUiAddress();
+            if (uiAddress == null) {
+                System.err.println("Warning: UI address not available");
+                return;
+            }
+            
+            if (NodeToSupervisorMessageType.infection_update.toString().equals(messageType) &&
+                Direction.node_to_supervisor.toString().equals(direction)) {
+                InfectionUpdateMsg nodeMsg = InfectionUpdateMsg.decodeMessage(msg);  // Decode InfectionUpdateMsg from node
+                
+                // Create InfectionUpdateMsg 
+                epidemic_core.message.supervisor_to_ui.infection_update.InfectionUpdateMsg uiMsg = 
+                    new epidemic_core.message.supervisor_to_ui.infection_update.InfectionUpdateMsg(
+                        Direction.supervisor_to_ui.toString(),
+                        SupervisorToUiMessageType.infection_update.toString(),
+                        nodeMsg.getUpdatedNodeId(),
+                        nodeMsg.getInfectingNodeId(),
+                        nodeMsg.getSubject(),
+                        nodeMsg.getSourceId(),
+                        nodeMsg.getTimestamp(),
+                        nodeMsg.getData()
+                    );
+                
+                String encodedMsg = uiMsg.encode();
+                supervisor.getCommunication().sendMessage(uiAddress, encodedMsg);
+                
+            } else if (NodeToSupervisorMessageType.remotion_update.toString().equals(messageType) &&
+                       Direction.node_to_supervisor.toString().equals(direction)) {
+                
+                RemotionUpdateMsg nodeMsg = RemotionUpdateMsg.decodeMessage(msg); // Decode RemotionUpdateMsg from node
+                
+                // Create RemotionUpdateMsg for UI 
+                epidemic_core.message.supervisor_to_ui.remotion_update.RemotionUpdateMsg uiMsg = 
+                    new epidemic_core.message.supervisor_to_ui.remotion_update.RemotionUpdateMsg(
+                        Direction.supervisor_to_ui.toString(),
+                        SupervisorToUiMessageType.remotion_update.toString(),
+                        nodeMsg.getUpdatedNodeId(),
+                        nodeMsg.getSubject(),
+                        nodeMsg.getSourceId(),
+                        nodeMsg.getTimestamp()
+                    );
+                
+                String encodedMsg = uiMsg.encode();
+                supervisor.getCommunication().sendMessage(uiAddress, encodedMsg);
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error processing node message: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     public void manageUiMessages(String msg){

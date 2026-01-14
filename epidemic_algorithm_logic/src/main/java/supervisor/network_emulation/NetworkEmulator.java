@@ -25,7 +25,7 @@ import java.util.*;
 public class NetworkEmulator {
 
     private final Address supervisorAddr = new Address("127.0.0.0", 7000);
-    private final double pushInterval = 2;
+    private final double roundInterval = 2;
     private final double defaultK = 2.0; // Default k value for gossip
     private Integer N;
     private Integer sourceNodes;

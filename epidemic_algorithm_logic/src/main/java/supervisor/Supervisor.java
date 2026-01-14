@@ -4,6 +4,7 @@ import epidemic_core.message.ui_to_supervisor.end_system.EndMsg;
 import epidemic_core.message.ui_to_supervisor.start_system.StartMsg;
 import general.communication.Communication;
 import general.communication.implementation.UdpCommunication;
+import general.communication.utils.Address;
 import supervisor.communication.Dispatcher;
 import supervisor.communication.Listener;
 import supervisor.communication.Worker;
@@ -52,10 +53,14 @@ public class Supervisor{
         return communication;
     }
 
+    public Address getUiAddress() {
+        return startMessage != null ? startMessage.getAddr() : null;
+    }
+
     // initialize topology and nodes
     public void startNetwork(StartMsg startMessage){
         this.startMessage = startMessage;
-
+        
         system = new NetworkEmulator(startMessage.getN(), startMessage.getSourceNodes(), startMessage.getTopology(), startMessage.getProtocol(), startMessage.getMode());
         system.initializeNetwork();
     }
