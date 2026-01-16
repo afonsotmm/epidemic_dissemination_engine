@@ -8,7 +8,6 @@ import epidemic_core.message.supervisor_to_ui.SupervisorToUiMessageType;
 import epidemic_core.message.ui_to_supervisor.UiToSupervisorMessageType;
 import epidemic_core.message.ui_to_supervisor.end_system.EndMsg;
 import epidemic_core.message.ui_to_supervisor.start_system.StartMsg;
-import general.communication.utils.Address;
 import general.fsm.FiniteStateMachine;
 import supervisor.Supervisor;
 
@@ -76,12 +75,7 @@ public class Worker {
             String direction = jsonNode.has("direction") ? jsonNode.get("direction").asText() : null;
             String messageType = jsonNode.has("messageType") ? jsonNode.get("messageType").asText() : null;
             
-            Address uiAddress = supervisor.getUiAddress();
-            if (uiAddress == null) {
-                System.err.println("Warning: UI address not available");
-                return;
-            }
-            
+            // INFECTION_UPDATE
             if (NodeToSupervisorMessageType.infection_update.toString().equals(messageType) &&
                 Direction.node_to_supervisor.toString().equals(direction)) {
                 InfectionUpdateMsg nodeMsg = InfectionUpdateMsg.decodeMessage(msg);  // Decode InfectionUpdateMsg from node
@@ -100,8 +94,9 @@ public class Worker {
                     );
                 
                 String encodedMsg = uiMsg.encode();
-                supervisor.getCommunication().sendMessage(uiAddress, encodedMsg);
+                supervisor.sendToUi(encodedMsg);
                 
+            // REMOVAL_UPDATE
             } else if (NodeToSupervisorMessageType.remotion_update.toString().equals(messageType) &&
                        Direction.node_to_supervisor.toString().equals(direction)) {
                 
@@ -119,7 +114,7 @@ public class Worker {
                     );
                 
                 String encodedMsg = uiMsg.encode();
-                supervisor.getCommunication().sendMessage(uiAddress, encodedMsg);
+                supervisor.sendToUi(encodedMsg);
             }
             
         } catch (Exception e) {

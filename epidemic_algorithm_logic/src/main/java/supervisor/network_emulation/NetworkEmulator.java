@@ -25,7 +25,6 @@ import java.util.*;
 public class NetworkEmulator {
 
     private final Address supervisorAddr = new Address("127.0.0.0", 7000);
-    private final double roundInterval = 2;
     private final double defaultK = 2.0; // Default k value for gossip
     private Integer N;
     private Integer sourceNodes;
@@ -33,6 +32,7 @@ public class NetworkEmulator {
     private String protocolType;
     private String modeType;
     private NetworkStructureManager networkStructureManager;
+    private NodeIdToAddressTable nodeIdToAddressTable;
     
     private Map<Integer, Object> nodes; // Map<nodeId, Node>
     private Map<Integer, Thread> nodeThreads; // Map<nodeId, Thread>
@@ -55,7 +55,7 @@ public class NetworkEmulator {
     // Initialize the network
     public void initializeNetwork()
     {
-        NodeIdToAddressTable infoTable = new NodeIdToAddressTable(N); // ip + port
+        this.nodeIdToAddressTable = new NodeIdToAddressTable(N); // ip + port
 
         // ========== Create Topology ==========
         TopologyType type = TopologyType.fromString(topologyType);
@@ -72,7 +72,7 @@ public class NetworkEmulator {
             List<Integer> neighbours = networkStructureManager.getNeighbors(id);
             String subjectStr = networkStructureManager.getSubjectForNode(id);
 
-            Thread nodeThread = runMode(id, neighbours, subjectStr, infoTable, mode);
+            Thread nodeThread = runMode(id, neighbours, subjectStr, nodeIdToAddressTable, mode);
             nodeThreads.put(id, nodeThread);
         }
     }
@@ -154,4 +154,15 @@ public class NetworkEmulator {
     public Address getSupervisorAddr() {
         return supervisorAddr;
     }
+    
+    // Get all node addresses
+    public Map<Integer, Address> getNodeAddresses() {
+        return nodeIdToAddressTable != null ? nodeIdToAddressTable.getAll() : new HashMap<>();
+    }
+    
+    // Get structural information matrix
+    public supervisor.network_emulation.neighbors_and_subject.StructuralInfosMatrix getStructuralInfosMatrix() {
+        return networkStructureManager != null ? networkStructureManager.getStructuralInfosMatrix() : null;
+    }
+
 }
