@@ -64,8 +64,8 @@ public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull
         checkForStartSignal();
         pushPullFsmHandle();
         replyUpdateFsmHandle();
-        // Print node state to track message evolution
-        node.printNodeState();
+        // Print node state removed - too verbose
+        // node.printNodeState();
     }
 
     public void workingLoop() {
@@ -267,8 +267,13 @@ public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull
                         MessageId msgId = message.getId();
                         // Only send if message is not removed
                         if (!node.isMessageRemoved(msgId)) {
-                            String stringMsg = message.encode();
-                            node.getCommunication().sendMessage(neighAddress, stringMsg);
+                            try {
+                                String stringMsg = message.encode();
+                                node.getCommunication().sendMessage(neighAddress, stringMsg);
+                            } catch (java.io.IOException e) {
+                                System.err.println("[Node " + node.getId() + "] Error encoding SpreadMsg: " + e.getMessage());
+                                e.printStackTrace();
+                            }
                         }
                     }
                 } else {
@@ -304,8 +309,13 @@ public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull
 
                         // Reply only if we have a more recent version AND it's not removed
                         if (storedTimestamp > reqTimestamp && !node.isMessageRemoved(storedMsgId)) {
-                            String stringMsg = storedMessage.encode();
-                            node.getCommunication().sendMessage(neighAddress, stringMsg);
+                            try {
+                                String stringMsg = storedMessage.encode();
+                                node.getCommunication().sendMessage(neighAddress, stringMsg);
+                            } catch (java.io.IOException e) {
+                                System.err.println("[Node " + node.getId() + "] Error encoding SpreadMsg: " + e.getMessage());
+                                e.printStackTrace();
+                            }
                         }
                     }
                 } else {

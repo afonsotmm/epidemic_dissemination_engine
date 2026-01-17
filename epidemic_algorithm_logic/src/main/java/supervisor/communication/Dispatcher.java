@@ -32,9 +32,11 @@ public class Dispatcher {
             String messageType = getMessageType(consumedMsg);
 
                 if(Direction.ui_to_supervisor.toString().equals(direction) && isUiMessageType(messageType)){
+                    System.out.println("[Supervisor] Received UI message: " + messageType);
                     uiQueue.put(consumedMsg);
                 }
                 else if(Direction.node_to_supervisor.toString().equals(direction) && isNodeMessageType(messageType)){
+                    System.out.println("[Supervisor] Received node message: " + messageType);
                     nodeQueue.put(consumedMsg);
                 }
 
@@ -80,7 +82,7 @@ public class Dispatcher {
 
     private boolean isUiMessageType(String messageType) {
         if (messageType == null) return false;
-        return "start_round".equals(messageType) || "end_round".equals(messageType);
+        return "start_system".equals(messageType) || "end_system".equals(messageType);
     }
 
     private boolean isNodeMessageType(String messageType) {

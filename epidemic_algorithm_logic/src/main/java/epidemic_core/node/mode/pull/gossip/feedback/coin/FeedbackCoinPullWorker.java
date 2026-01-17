@@ -64,8 +64,8 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
         checkForStartSignal();
         pullFsmHandle();
         replyFsmHandle();
-        // Print node state to track message evolution
-        node.printNodeState();
+        // Print node state removed - too verbose
+        // node.printNodeState();
     }
 
     public void workingLoop() {
@@ -257,12 +257,17 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
                         if (storedTimestamp >= reqTimestamp) {
                             // Send FeedbackMsg to indicate we already have this message
                             FeedbackMsg feedbackMsg = new FeedbackMsg(requestMsg.getId());
-                            String feedbackString = feedbackMsg.encode();
-                            node.getCommunication().sendMessage(neighAddress, feedbackString);
-                            if (node.isRunning()) {
-                                System.out.println("[Node " + node.getId() + "] Feedback Coin: Sent feedback for message '" + 
-                                        reqSubject + "' from source " + reqSourceId + 
-                                        " (timestamp=" + reqTimestamp + ") to node " + neighId);
+                            try {
+                                String feedbackString = feedbackMsg.encode();
+                                node.getCommunication().sendMessage(neighAddress, feedbackString);
+                                if (node.isRunning()) {
+                                    System.out.println("[Node " + node.getId() + "] Feedback Coin: Sent feedback for message '" + 
+                                            reqSubject + "' from source " + reqSourceId + 
+                                            " (timestamp=" + reqTimestamp + ") to node " + neighId);
+                                }
+                            } catch (java.io.IOException e) {
+                                System.err.println("[Node " + node.getId() + "] Error encoding FeedbackMsg: " + e.getMessage());
+                                e.printStackTrace();
                             }
                             // Note: We don't send SpreadMsg if we have same or more recent version
                         } else {
@@ -286,8 +291,13 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
                         MessageId msgId = message.getId();
                         // Only send if message is not removed
                         if (!node.isMessageRemoved(msgId)) {
-                            String stringMsg = message.encode();
-                            node.getCommunication().sendMessage(neighAddress, stringMsg);
+                            try {
+                                String stringMsg = message.encode();
+                                node.getCommunication().sendMessage(neighAddress, stringMsg);
+                            } catch (java.io.IOException e) {
+                                System.err.println("[Node " + node.getId() + "] Error encoding SpreadMsg: " + e.getMessage());
+                                e.printStackTrace();
+                            }
                         }
                     }
                 } else {

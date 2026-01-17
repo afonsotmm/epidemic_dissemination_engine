@@ -54,8 +54,8 @@ public class FeedbackCoinPushWorker implements WorkerInterface {
         checkForStartSignal();
         pushFsmHandle();
         updateFsmHandle();
-        // Print node state to track message evolution
-        node.printNodeState();
+        // Print node state removed - too verbose
+        // node.printNodeState();
     }
 
     public void workingLoop() {
@@ -102,8 +102,13 @@ public class FeedbackCoinPushWorker implements WorkerInterface {
                         continue; // Skip this message, don't spread it
                     }
                     
-                    String stringMsg = message.encode();
-                    node.getCommunication().sendMessage(randNeighAdd, stringMsg);
+                    try {
+                        String stringMsg = message.encode();
+                        node.getCommunication().sendMessage(randNeighAdd, stringMsg);
+                    } catch (java.io.IOException e) {
+                        System.err.println("[Node " + node.getId() + "] Error encoding SpreadMsg: " + e.getMessage());
+                        e.printStackTrace();
+                    }
                     // Note: No coin toss here only when receiving FeedbackMsg
                 }
             } else {
@@ -156,12 +161,17 @@ public class FeedbackCoinPushWorker implements WorkerInterface {
                                         Address originAddress = node.getNeighbourAddress(originId);
                                         if (originAddress != null) {
                                             FeedbackMsg feedbackMsg = new FeedbackMsg(msgId);
-                                            String feedbackString = feedbackMsg.encode();
-                                            node.getCommunication().sendMessage(originAddress, feedbackString);
-                                            if (node.isRunning()) {
-                                                System.out.println("[Node " + node.getId() + "] Feedback Coin: Sent feedback for message '" + 
-                                                        msgId.topic().subject() + "' from source " + msgId.topic().sourceId() + 
-                                                        " (timestamp=" + msgId.timestamp() + ") to node " + originId);
+                                            try {
+                                                String feedbackString = feedbackMsg.encode();
+                                                node.getCommunication().sendMessage(originAddress, feedbackString);
+                                                if (node.isRunning()) {
+                                                    System.out.println("[Node " + node.getId() + "] Feedback Coin: Sent feedback for message '" + 
+                                                            msgId.topic().subject() + "' from source " + msgId.topic().sourceId() + 
+                                                            " (timestamp=" + msgId.timestamp() + ") to node " + originId);
+                                                }
+                                            } catch (java.io.IOException e) {
+                                                System.err.println("[Node " + node.getId() + "] Error encoding FeedbackMsg: " + e.getMessage());
+                                                e.printStackTrace();
                                             }
                                         }
                                     } else if (node.isRunning()) {

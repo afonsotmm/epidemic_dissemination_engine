@@ -48,8 +48,8 @@ public class AntiEntropyPushWorker implements WorkerInterface {
         checkForStartSignal();
         pushFsmHandle();
         updateFsmHandle();
-        // Print node state to track message evolution
-        node.printNodeState();
+        // Print node state removed - too verbose
+        // node.printNodeState();
     }
 
     public void workingLoop() {

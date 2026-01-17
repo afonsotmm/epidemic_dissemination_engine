@@ -54,8 +54,8 @@ public class BlindCoinPushWorker implements WorkerInterface {
         checkForStartSignal();
         pushFsmHandle();
         updateFsmHandle();
-        // Print node state to track message evolution
-        node.printNodeState();
+        // Print node state removed - too verbose
+        // node.printNodeState();
     }
 
     public void workingLoop() {
@@ -102,18 +102,23 @@ public class BlindCoinPushWorker implements WorkerInterface {
                         continue; // Skip this message, don't spread it
                     }
                     
+                    try {
                     String stringMsg = message.encode();
                     node.getCommunication().sendMessage(randNeighAdd, stringMsg);
                     
-                    // After pushing, toss coin with probability 1/k
-                    // If successful (coin == true), remove this specific message
-                    if (GossipNode.tossCoin(k)) {
-                        node.removeMessage(messageId);
-                        if (node.isRunning()) {
-                            System.out.println("[Node " + node.getId() + "] Blind Coin: Removed message '" + 
-                                    messageId.topic().subject() + "' from source " + messageId.topic().sourceId() + 
-                                    " (timestamp=" + messageId.timestamp() + ", k=" + k + ")");
+                        // After pushing, toss coin with probability 1/k
+                        // If successful (coin == true), remove this specific message
+                        if (GossipNode.tossCoin(k)) {
+                            node.removeMessage(messageId);
+                            if (node.isRunning()) {
+                        System.out.println("[Node " + node.getId() + "] Blind Coin: Removed message '" + 
+                                        messageId.topic().subject() + "' from source " + messageId.topic().sourceId() + 
+                                        " (timestamp=" + messageId.timestamp() + ", k=" + k + ")");
+                            }
                         }
+                    } catch (java.io.IOException e) {
+                        System.err.println("[Node " + node.getId() + "] Error encoding SpreadMsg: " + e.getMessage());
+                        e.printStackTrace();
                     }
                 }
             } else {
@@ -154,7 +159,7 @@ public class BlindCoinPushWorker implements WorkerInterface {
                             Boolean gotStored = node.storeOrIgnoreMessage(spreadMsg);
                             if(!gotStored) {
                                 if (node.isRunning()) {
-                                    System.out.println("[Node " + node.getId() + "] Ignored message - subject '" + spreadMsg.getId().topic().subject() + "' (older timestamp)");
+                                System.out.println("[Node " + node.getId() + "] Ignored message - subject '" + spreadMsg.getId().topic().subject() + "' (older timestamp)");
                                 }
                             }
                         }

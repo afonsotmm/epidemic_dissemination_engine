@@ -33,32 +33,43 @@ public class Worker {
 
     public void generalFsmLogic() {
         while(true) {
-            String nodeMsg = nodeQueue.poll();
+            // Check for UI messages first (priority)
             String uiMsg = uiQueue.poll();
-
+            
             // Update time in state
             generalFsm.updateTis();
             CommsStates currState = generalFsm.getState();
 
-            // Transitions
-            if(currState == CommsStates.IDLE && uiMsg != null) {
+            // Transitions - UI messages have priority
+            if(uiMsg != null) {
                 generalFsm.setNewState(CommsStates.CONTROL);
-            }
-
-            else if(currState == CommsStates.IDLE && (uiMsg == null) && (nodeMsg != null)) {
-                generalFsm.setNewState(CommsStates.MONITOR);
-            }
-
-            // Set state
-            generalFsm.setState();
-
-            // Compute actions
-            if(generalFsm.getState() == CommsStates.MONITOR) {
-                manageNodeMessages(nodeMsg);
-            }
-
-            else if(generalFsm.getState() == CommsStates.CONTROL) { // messages from UI
+                generalFsm.setState();
                 manageUiMessages(uiMsg);
+                // Return to IDLE after processing UI message
+                generalFsm.setNewState(CommsStates.IDLE);
+                generalFsm.setState();
+            }
+            // Process node messages if no UI message
+            else {
+                // Process ALL available node messages in batch
+                int processedCount = 0;
+                String nodeMsg;
+                while ((nodeMsg = nodeQueue.poll()) != null) {
+                    if (currState == CommsStates.IDLE) {
+                        generalFsm.setNewState(CommsStates.MONITOR);
+                        generalFsm.setState();
+                        currState = CommsStates.MONITOR;
+                    }
+                    
+                    manageNodeMessages(nodeMsg);
+                    processedCount++;
+                }
+                
+                if (processedCount > 0) {
+                    // Return to IDLE after processing all node messages
+                    generalFsm.setNewState(CommsStates.IDLE);
+                    generalFsm.setState();
+                }
             }
             
             Thread.onSpinWait();
@@ -66,7 +77,9 @@ public class Worker {
     }
 
     public void manageNodeMessages(String msg){
-        if (msg == null) return;
+        if (msg == null) {
+            return;
+        }
         
         try {
             ObjectMapper objectMapper = new ObjectMapper();
@@ -80,7 +93,22 @@ public class Worker {
                 Direction.node_to_supervisor.toString().equals(direction)) {
                 InfectionUpdateMsg nodeMsg = InfectionUpdateMsg.decodeMessage(msg);  // Decode InfectionUpdateMsg from node
                 
-                // Create InfectionUpdateMsg 
+                // Record in local GUI
+                supervisor.ui.SupervisorGui gui = supervisor.getGui();
+                if (gui == null || nodeMsg.getTimestamp() == null) {
+                    return;
+                }
+                
+                gui.recordInfection(
+                    nodeMsg.getUpdatedNodeId(),
+                    nodeMsg.getInfectingNodeId(),
+                    nodeMsg.getSubject(),
+                    nodeMsg.getSourceId(),
+                    nodeMsg.getTimestamp().intValue(),
+                    nodeMsg.getData()
+                );
+                
+                // Create InfectionUpdateMsg for external UI
                 epidemic_core.message.supervisor_to_ui.infection_update.InfectionUpdateMsg uiMsg = 
                     new epidemic_core.message.supervisor_to_ui.infection_update.InfectionUpdateMsg(
                         Direction.supervisor_to_ui.toString(),
@@ -102,7 +130,18 @@ public class Worker {
                 
                 RemotionUpdateMsg nodeMsg = RemotionUpdateMsg.decodeMessage(msg); // Decode RemotionUpdateMsg from node
                 
-                // Create RemotionUpdateMsg for UI 
+                // Record in local GUI
+                supervisor.ui.SupervisorGui gui = supervisor.getGui();
+                if (gui != null && nodeMsg.getTimestamp() != null) {
+                    gui.recordRemotion(
+                        nodeMsg.getUpdatedNodeId(),
+                        nodeMsg.getSubject(),
+                        nodeMsg.getSourceId(),
+                        nodeMsg.getTimestamp().intValue()
+                    );
+                }
+                
+                // Create RemotionUpdateMsg for external UI 
                 epidemic_core.message.supervisor_to_ui.remotion_update.RemotionUpdateMsg uiMsg = 
                     new epidemic_core.message.supervisor_to_ui.remotion_update.RemotionUpdateMsg(
                         Direction.supervisor_to_ui.toString(),
@@ -136,8 +175,10 @@ public class Worker {
             if (UiToSupervisorMessageType.start_system.toString().equals(messageType) && 
                 Direction.ui_to_supervisor.toString().equals(direction)) {
                 // START_SYSTEM
+                System.out.println("[Supervisor] Processing StartMsg - initializing network...");
                 StartMsg startMsg = StartMsg.decodeMessage(msg);
                 supervisor.startNetwork(startMsg);
+                System.out.println("[Supervisor] Network initialized successfully!");
 
             } else if (UiToSupervisorMessageType.end_system.toString().equals(messageType) &&
                        Direction.ui_to_supervisor.toString().equals(direction)) {
@@ -147,7 +188,10 @@ public class Worker {
             }
             
         } catch (java.io.IOException e) {
-            System.err.println("Error decoding JSON message: " + e.getMessage());
+            System.err.println("[Worker] Error decoding JSON message: " + e.getMessage());
+            e.printStackTrace();
+        } catch (Exception e) {
+            System.err.println("[Worker] Unexpected error processing UI message: " + e.getMessage());
             e.printStackTrace();
         }
     }

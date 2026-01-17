@@ -1,6 +1,7 @@
 package epidemic_core.message.node_to_node.feedback;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -9,13 +10,14 @@ import epidemic_core.message.common.MessageId;
 import epidemic_core.message.node_to_node.NodeToNodeMessageType;
 import java.io.IOException;
 
-@JsonPropertyOrder({"direction", "messageType", "subject", "sourceId", "timestamp"})
+@JsonPropertyOrder({"direction", "messageType", "subject", "timestamp", "id"})
 public class FeedbackMsg {
 
+    @JsonIgnore
     private final FeedbackHeader header;
     private final MessageId id;
 
-    // Constructor
+    // Constructor for JSON deserialization
     @JsonCreator
     public FeedbackMsg(@JsonProperty("direction") String direction,
                        @JsonProperty("messageType") String messageType,
@@ -32,9 +34,18 @@ public class FeedbackMsg {
         this.header = new FeedbackHeader();
         this.id = id;
     }
+    
+    // Constructor for programmatic creation (convenience constructor)
+    public FeedbackMsg(MessageId id) {
+        this.header = new FeedbackHeader();
+        this.id = id;
+    }
 
     // getters
+    @JsonIgnore
     public FeedbackHeader getHeader() { return header; }
+    
+    @JsonProperty("id")
     public MessageId getId() { return id; }
 
     @JsonProperty("direction")
@@ -52,7 +63,9 @@ public class FeedbackMsg {
         return id != null ? id.topic().subject() : null;
     }
 
-    @JsonProperty("sourceId")
+    // Removed @JsonProperty("sourceId") - sourceId is already in id.topic().sourceId()
+    // This getter is kept for programmatic access but not serialized
+    @JsonIgnore
     public Integer getSourceId() {
         return id != null ? id.topic().sourceId() : null;
     }

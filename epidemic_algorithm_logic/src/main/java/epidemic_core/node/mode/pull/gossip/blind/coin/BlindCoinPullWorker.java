@@ -62,8 +62,8 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
         checkForStartSignal();
         pullFsmHandle();
         replyFsmHandle();
-        // Print node state to track message evolution
-        node.printNodeState();
+        // Print node state removed - too verbose
+        // node.printNodeState();
     }
 
     public void workingLoop() {
@@ -259,8 +259,13 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
 
                         // Reply only if we have a more recent version
                         if (storedTimestamp > reqTimestamp) {
-                            String stringMsg = storedMessage.encode();
-                            node.getCommunication().sendMessage(neighAddress, stringMsg);
+                            try {
+                                String stringMsg = storedMessage.encode();
+                                node.getCommunication().sendMessage(neighAddress, stringMsg);
+                            } catch (java.io.IOException e) {
+                                System.err.println("[Node " + node.getId() + "] Error encoding SpreadMsg: " + e.getMessage());
+                                e.printStackTrace();
+                            }
                         }
                     }
                 } else {
@@ -279,8 +284,13 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
                         MessageId msgId = message.getId();
                         // Only send if message is not removed
                         if (!node.isMessageRemoved(msgId)) {
-                            String stringMsg = message.encode();
-                            node.getCommunication().sendMessage(neighAddress, stringMsg);
+                            try {
+                                String stringMsg = message.encode();
+                                node.getCommunication().sendMessage(neighAddress, stringMsg);
+                            } catch (java.io.IOException e) {
+                                System.err.println("[Node " + node.getId() + "] Error encoding SpreadMsg: " + e.getMessage());
+                                e.printStackTrace();
+                            }
                         }
                     }
                 } else {

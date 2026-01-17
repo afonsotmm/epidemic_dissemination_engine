@@ -22,6 +22,7 @@ public class Listener {
         while (true) {
             String receivedMsg = communication.receiveMessage();
             if (receivedMsg != null) {
+                System.out.println("[Supervisor] Received message from UI/Node");
                 try {
                     msgsQueue.put(receivedMsg);
                 } catch (InterruptedException e) {

@@ -53,7 +53,7 @@ public class AntiEntropyPushNode extends AntiEntropyNode {
         Thread.startVirtualThread(dispatcher::dispatchingLoop);
         Thread.startVirtualThread(worker::workingLoop);
     }
-    
+
     public void stopRunning() {
         stop(); // Set isRunning flag to false
         listener.stopListening();

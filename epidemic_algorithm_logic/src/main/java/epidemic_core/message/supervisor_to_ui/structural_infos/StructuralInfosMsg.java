@@ -2,6 +2,7 @@ package epidemic_core.message.supervisor_to_ui.structural_infos;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import epidemic_core.message.common.Direction;
@@ -18,6 +19,7 @@ import java.util.Map;
 
 public class StructuralInfosMsg {
     
+    @JsonIgnore
     private final StructuralInfosHeader header;
     
     @JsonProperty("nodes")

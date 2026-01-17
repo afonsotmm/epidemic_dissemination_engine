@@ -62,8 +62,8 @@ public class AntiEntropyPushPullWorker implements WorkerInterface {
         checkForStartSignal();
         pushPullFsmHandle();
         replyUpdateFsmHandle();
-        // Print node state to track message evolution
-        node.printNodeState();
+        // Print node state removed - too verbose
+        // node.printNodeState();
     }
 
     public void workingLoop() {

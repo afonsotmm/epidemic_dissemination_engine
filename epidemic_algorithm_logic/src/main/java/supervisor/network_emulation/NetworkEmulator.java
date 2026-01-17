@@ -14,6 +14,7 @@ import epidemic_core.node.mode.pushpull.anti_entropy.AntiEntropyPushPullNode;
 import epidemic_core.node.mode.pushpull.gossip.GossipPushPullNode;
 import epidemic_core.node.mode.pushpull.gossip.blind.coin.BlindCoinPushPullNode;
 import epidemic_core.node.mode.pushpull.gossip.feedback.coin.FeedbackCoinPushPullNode;
+import epidemic_core.message.common.MessageTopic;
 import general.communication.utils.Address;
 import supervisor.network_emulation.neighbors_and_subject.NetworkStructureManager;
 import supervisor.network_emulation.topology_creation.Topology;
@@ -21,10 +22,11 @@ import supervisor.network_emulation.topology_creation.TopologyType;
 import supervisor.network_emulation.utils.NodeIdToAddressTable;
 
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
 
 public class NetworkEmulator {
 
-    private final Address supervisorAddr = new Address("127.0.0.0", 7000);
+    private final Address supervisorAddr;
     private final double defaultK = 2.0; // Default k value for gossip
     private Integer N;
     private Integer sourceNodes;
@@ -42,12 +44,14 @@ public class NetworkEmulator {
                            Integer sourceNodes,
                            String topologyType,
                            String protocolType,
-                           String modeType) {
+                           String modeType,
+                           Address supervisorAddr) {
         this.N = N;
         this.sourceNodes = sourceNodes;
         this.topologyType = topologyType;
         this.protocolType = protocolType;
         this.modeType = modeType;
+        this.supervisorAddr = supervisorAddr;
         this.nodes = new HashMap<>();
         this.nodeThreads = new HashMap<>();
     }
@@ -67,14 +71,63 @@ public class NetworkEmulator {
 
         NodeMode mode = NodeMode.fromString(modeType); // dissemination mode
 
-        // ========== RUN ===========
+        // ========== Generate subscribed topics ==========
+        // Each node is interested in all subjects published by sources (subject + sourceId)
+        List<MessageTopic> subscribedTopics = generateSubscribedTopics();
+
+        // ========== RUN ==========
+        // Use CountDownLatch to wait for all nodes to be created
+        CountDownLatch creationLatch = new CountDownLatch(N);
+        
         for(int id = 0; id < N; id++){
+            final int nodeId = id;
             List<Integer> neighbours = networkStructureManager.getNeighbors(id);
             String subjectStr = networkStructureManager.getSubjectForNode(id);
 
-            Thread nodeThread = runMode(id, neighbours, subjectStr, nodeIdToAddressTable, mode);
-            nodeThreads.put(id, nodeThread);
+            // Create node in a separate virtual thread with delay to avoid socket conflicts
+            Thread.startVirtualThread(() -> {
+                try {
+                    // Small delay to avoid socket creation conflicts
+                    Thread.sleep(nodeId * 10); // 10ms delay between each node
+                    
+                    Thread nodeThread = runMode(nodeId, neighbours, subjectStr, nodeIdToAddressTable, mode, subscribedTopics);
+                    nodeThreads.put(nodeId, nodeThread);
+                    
+                    creationLatch.countDown();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
         }
+        
+        // Wait for all nodes to be created before returning
+        try {
+            creationLatch.await();
+            System.out.println("All " + N + " nodes created successfully");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("Interrupted while waiting for nodes to be created");
+        }
+    }
+    
+    /**
+     * Generate subscribed topics based on all sources
+     * Each node is interested in all subjects published by sources (subject + sourceId)
+     */
+    private List<MessageTopic> generateSubscribedTopics() {
+        List<MessageTopic> topics = new ArrayList<>();
+        Set<Integer> sourceNodesId = networkStructureManager.getSourceNodesId();
+        
+        for (Integer sourceId : sourceNodesId) {
+            String subject = networkStructureManager.getSubjectForNode(sourceId);
+            if (subject != null) {
+                // Create MessageTopic with subject and sourceId
+                topics.add(new MessageTopic(subject, sourceId));
+            }
+        }
+        
+        System.out.println("Generated " + topics.size() + " subscribed topics for all nodes");
+        return topics;
     }
 
     // Run the thread for each node
@@ -82,9 +135,10 @@ public class NetworkEmulator {
                           List<Integer> neighbours,
                           String assignedSubjectAsSource,
                           NodeIdToAddressTable nodeIdToAddressTable,
-                          NodeMode mode)
+                          NodeMode mode,
+                          List<MessageTopic> subscribedTopics)
     {
-        Node node = createNode(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, mode);
+        Node node = createNode(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, mode, subscribedTopics);
 
         nodes.put(id, node); // to store references to the nodes (for stopping them later)
 
@@ -106,7 +160,8 @@ public class NetworkEmulator {
                             List<Integer> neighbours,
                             String assignedSubjectAsSource,
                             NodeIdToAddressTable nodeIdToAddressTable,
-                            NodeMode mode) {
+                            NodeMode mode,
+                            List<MessageTopic> subscribedTopics) {
         
         String protocol = protocolType != null ? protocolType.toLowerCase() : "anti_entropy";
         Map<Integer, Address> addressTable = nodeIdToAddressTable.getAll();
@@ -114,25 +169,25 @@ public class NetworkEmulator {
         switch (mode) {
             case PULL:
                 return switch (protocol) {
-                    case "anti_entropy" -> new AntiEntropyPullNode(id, neighbours, assignedSubjectAsSource, addressTable, null, supervisorAddr);
-                    case "gossip_feedback_coin", "feedback_coin" -> new FeedbackCoinPullNode(id, neighbours, assignedSubjectAsSource, addressTable, null, supervisorAddr, defaultK);
-                    case "gossip_blind_coin", "blind_coin" -> new BlindCoinPullNode(id, neighbours, assignedSubjectAsSource, addressTable, null, supervisorAddr, defaultK);
+                    case "anti_entropy" -> new AntiEntropyPullNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr);
+                    case "gossip_feedback_coin", "feedback_coin" -> new FeedbackCoinPullNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr, defaultK);
+                    case "gossip_blind_coin", "blind_coin" -> new BlindCoinPullNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr, defaultK);
                     default -> throw new IllegalArgumentException("Invalid protocol for PULL mode: " + protocol);
                 };
             
             case PUSH:
                 return switch (protocol) {
-                    case "anti_entropy" -> new AntiEntropyPushNode(id, neighbours, assignedSubjectAsSource, addressTable, null, supervisorAddr);
-                    case "gossip_feedback_coin", "feedback_coin" -> new FeedbackCoinPushNode(id, neighbours, assignedSubjectAsSource, addressTable, null, supervisorAddr, defaultK);
-                    case "gossip_blind_coin", "blind_coin" -> new BlindCoinPushNode(id, neighbours, assignedSubjectAsSource, addressTable, null, supervisorAddr, defaultK);
+                    case "anti_entropy" -> new AntiEntropyPushNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr);
+                    case "gossip_feedback_coin", "feedback_coin" -> new FeedbackCoinPushNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr, defaultK);
+                    case "gossip_blind_coin", "blind_coin" -> new BlindCoinPushNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr, defaultK);
                     default -> throw new IllegalArgumentException("Invalid protocol for PUSH mode: " + protocol);
                 };
             
             case PUSHPULL:
                 return switch (protocol) {
-                    case "anti_entropy" -> new AntiEntropyPushPullNode(id, neighbours, assignedSubjectAsSource, addressTable, null, supervisorAddr);
-                    case "gossip_feedback_coin", "feedback_coin" -> new FeedbackCoinPushPullNode(id, neighbours, assignedSubjectAsSource, addressTable, null, supervisorAddr, defaultK);
-                    case "gossip_blind_coin", "blind_coin" -> new BlindCoinPushPullNode(id, neighbours, assignedSubjectAsSource, addressTable, null, supervisorAddr, defaultK);
+                    case "anti_entropy" -> new AntiEntropyPushPullNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr);
+                    case "gossip_feedback_coin", "feedback_coin" -> new FeedbackCoinPushPullNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr, defaultK);
+                    case "gossip_blind_coin", "blind_coin" -> new BlindCoinPushPullNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr, defaultK);
                     default -> throw new IllegalArgumentException("Invalid protocol for PUSHPULL mode: " + protocol);
                 };
             
@@ -159,10 +214,21 @@ public class NetworkEmulator {
     public Map<Integer, Address> getNodeAddresses() {
         return nodeIdToAddressTable != null ? nodeIdToAddressTable.getAll() : new HashMap<>();
     }
-    
+
     // Get structural information matrix
     public supervisor.network_emulation.neighbors_and_subject.StructuralInfosMatrix getStructuralInfosMatrix() {
         return networkStructureManager != null ? networkStructureManager.getStructuralInfosMatrix() : null;
     }
-
+    
+    // Get NetworkStructureManager (for accessing source nodes info)
+    public NetworkStructureManager getNetworkStructureManager() {
+        return networkStructureManager;
+    }
+    
+    /**
+     * Get all nodes map (for direct access)
+     */
+    public Map<Integer, Object> getNodes() {
+        return nodes;
+    }
 }

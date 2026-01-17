@@ -66,8 +66,8 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
         checkForStartSignal();
         pushPullFsmHandle();
         replyUpdateFsmHandle();
-        // Print node state to track message evolution
-        node.printNodeState();
+        // Print node state removed - too verbose
+        // node.printNodeState();
     }
 
     public void workingLoop() {
@@ -262,8 +262,13 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
                         MessageId msgId = message.getId();
                         // Only send if message is not removed
                         if (!node.isMessageRemoved(msgId)) {
-                            String stringMsg = message.encode();
-                            node.getCommunication().sendMessage(neighAddress, stringMsg);
+                            try {
+                                String stringMsg = message.encode();
+                                node.getCommunication().sendMessage(neighAddress, stringMsg);
+                            } catch (java.io.IOException e) {
+                                System.err.println("[Node " + node.getId() + "] Error encoding SpreadMsg: " + e.getMessage());
+                                e.printStackTrace();
+                            }
                         }
                     }
                 } else {
@@ -301,17 +306,27 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
                         if (storedTimestamp == reqTimestamp && !node.isMessageRemoved(storedMsgId)) {
                             // Same version: send FeedbackMsg to indicate we already have this message
                             FeedbackMsg feedbackMsg = new FeedbackMsg(reqMsgId);
-                            String feedbackString = feedbackMsg.encode();
-                            node.getCommunication().sendMessage(neighAddress, feedbackString);
-                            if (node.isRunning()) {
-                                System.out.println("[Node " + node.getId() + "] Feedback Coin: Sent feedback for message '" + 
-                                        reqSubject + "' from source " + reqSourceId + 
-                                        " (timestamp=" + reqTimestamp + ") to node " + neighId);
+                            try {
+                                String feedbackString = feedbackMsg.encode();
+                                node.getCommunication().sendMessage(neighAddress, feedbackString);
+                                if (node.isRunning()) {
+                                    System.out.println("[Node " + node.getId() + "] Feedback Coin: Sent feedback for message '" + 
+                                            reqSubject + "' from source " + reqSourceId + 
+                                            " (timestamp=" + reqTimestamp + ") to node " + neighId);
+                                }
+                            } catch (java.io.IOException e) {
+                                System.err.println("[Node " + node.getId() + "] Error encoding FeedbackMsg: " + e.getMessage());
+                                e.printStackTrace();
                             }
                         } else if (storedTimestamp > reqTimestamp && !node.isMessageRemoved(storedMsgId)) {
                             // More recent version: send SpreadMsg to update the requestor
-                            String stringMsg = storedMessage.encode();
-                            node.getCommunication().sendMessage(neighAddress, stringMsg);
+                            try {
+                                String stringMsg = storedMessage.encode();
+                                node.getCommunication().sendMessage(neighAddress, stringMsg);
+                            } catch (java.io.IOException e) {
+                                System.err.println("[Node " + node.getId() + "] Error encoding SpreadMsg: " + e.getMessage());
+                                e.printStackTrace();
+                            }
                         }
                         // If we have older version, don't send anything (requestor already has newer version)
                     }
