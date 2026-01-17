@@ -291,8 +291,19 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
                         MessageId msgId = message.getId();
                         // Only send if message is not removed
                         if (!node.isMessageRemoved(msgId)) {
+                            // Create new SpreadMsg with updated originId (this node is now the origin)
+                            SpreadMsg forwardMsg = new SpreadMsg(
+                                epidemic_core.message.common.Direction.node_to_node.toString(),
+                                epidemic_core.message.node_to_node.NodeToNodeMessageType.spread.toString(),
+                                msgId.topic().subject(),
+                                msgId.topic().sourceId(),
+                                msgId.timestamp(),
+                                node.getId(), // Update originId to this node (who is replying)
+                                message.getData()
+                            );
+                            
                             try {
-                                String stringMsg = message.encode();
+                                String stringMsg = forwardMsg.encode();
                                 node.getCommunication().sendMessage(neighAddress, stringMsg);
                             } catch (java.io.IOException e) {
                                 System.err.println("[Node " + node.getId() + "] Error encoding SpreadMsg: " + e.getMessage());

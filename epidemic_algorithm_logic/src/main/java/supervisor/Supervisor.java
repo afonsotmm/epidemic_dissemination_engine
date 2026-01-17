@@ -5,6 +5,7 @@ import epidemic_core.message.supervisor_to_ui.structural_infos.StructuralInfosMs
 import epidemic_core.message.ui_to_supervisor.end_system.EndMsg;
 import epidemic_core.message.ui_to_supervisor.start_system.StartMsg;
 import general.communication.Communication;
+import general.communication.implementation.TcpCommunication;
 import general.communication.implementation.UdpCommunication;
 import general.communication.utils.Address;
 import supervisor.communication.Dispatcher;
@@ -25,14 +26,16 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 public class Supervisor{
 
-    private Communication communication;
+    private Communication nodeCommunication;  // UDP for nodes
+    private Communication uiCommunication;    // TCP for external UI
 
     private Listener listener;
     private Dispatcher dispatcher;
     private Worker worker;
     private NetworkEmulator system;
 
-    private BlockingQueue<String> msgsQueue;
+    private BlockingQueue<String> udpMsgsQueue;  // Messages from UDP (nodes)
+    private BlockingQueue<String> tcpMsgsQueue;  // Messages from TCP (UI)
     private BlockingQueue<String> nodeQueue;
     private BlockingQueue<String> uiQueue;
 
@@ -47,21 +50,30 @@ public class Supervisor{
     private int supervisorPort = 7000; // Default port, updated in initialize()
     private SupervisorGui gui;
     private int currentRound = 0;
+    private volatile boolean externalUiAvailable = true; // Track if external UI is available
 
     public Supervisor(){
         // buffers:
-        this.msgsQueue = new LinkedBlockingQueue<>();
+        this.udpMsgsQueue = new LinkedBlockingQueue<>();  // Messages from UDP (nodes)
+        this.tcpMsgsQueue = new LinkedBlockingQueue<>();  // Messages from TCP (UI)
         this.nodeQueue = new LinkedBlockingQueue<>();
         this.uiQueue = new LinkedBlockingQueue<>();
 
-        this.communication = new UdpCommunication();
-        this.listener = new Listener(this, msgsQueue);
-        this.dispatcher = new Dispatcher(msgsQueue, nodeQueue, uiQueue);
+        // Separate communications: UDP for nodes, TCP for UI
+        this.nodeCommunication = new UdpCommunication();
+        this.uiCommunication = new TcpCommunication();
+        
+        this.listener = new Listener(this, udpMsgsQueue, tcpMsgsQueue);
+        this.dispatcher = new Dispatcher(udpMsgsQueue, tcpMsgsQueue, nodeQueue, uiQueue);
         this.worker = new Worker(this, nodeQueue, uiQueue);
     }
 
-    public Communication getCommunication() {
-        return communication;
+    public Communication getNodeCommunication() {
+        return nodeCommunication;
+    }
+
+    public Communication getUiCommunication() {
+        return uiCommunication;
     }
 
     public Address getUiAddress() {
@@ -134,16 +146,7 @@ public class Supervisor{
             StructuralInfosMsg msg = StructuralInfosMsg.fromStructuralInfosMatrix(matrix);
             String encodedMsg = msg.encode();
             
-            // Check size before sending
-            byte[] messageBytes = encodedMsg.getBytes();
-            int practicalMaxSize = 60000; // Safe UDP limit
-            
-            if (messageBytes.length > practicalMaxSize) {
-                System.out.println("Note: StructuralInfosMsg is too large (" + messageBytes.length + " bytes) for UDP. " +
-                                 "Skipping send to external UI (local GUI still works).");
-                return;
-            }
-            
+            // TCP has no size limit like UDP, so we can send large messages
             sendToUi(encodedMsg);
         } catch (Exception e) {
             System.err.println("Error sending structural infos to UI: " + e.getMessage());
@@ -172,13 +175,27 @@ public class Supervisor{
                 for (Map.Entry<Integer, Address> entry : nodeAddresses.entrySet()) {
                     Address nodeAddress = entry.getValue();
                     if (nodeAddress != null) {
-                        communication.sendMessage(nodeAddress, encodedMsg);
+                        nodeCommunication.sendMessage(nodeAddress, encodedMsg);
                     }
                 }
                 
                 System.out.println("Round " + currentRound + " triggered for all " + nodesCount + " nodes");
                 
-                Thread.sleep(roundInterval * 1000); // Sleep for 2 seconds
+                // Sleep for round interval, but check if interrupted
+                try {
+                    Thread.sleep(roundInterval * 1000); // Sleep for 2 seconds
+                } catch (InterruptedException e) {
+                    // Thread was interrupted (likely by endNetwork), exit the loop
+                    Thread.currentThread().interrupt();
+                    System.out.println("Round sending thread interrupted. Stopping rounds.");
+                    break;
+                }
+                
+                // Check again if network is still running after sleep
+                if (!isNetworkRunning) {
+                    System.out.println("Network stopped. Exiting round loop.");
+                    break;
+                }
             }
         } catch (Exception e) {
             System.err.println("Error in start round message: " + e.getMessage());
@@ -201,26 +218,34 @@ public class Supervisor{
     }
     
     
-    // Send message to UI
+    // Send message to UI (using TCP)
     public void sendToUi(String encodedMessage) {
+        // If external UI is not available, skip sending (local GUI still works)
+        if (!externalUiAvailable) {
+            return;
+        }
+        
         Address uiAddress = getUiAddress();
         if (uiAddress == null) {
-            System.err.println("Warning: UI address not available");
+            // UI address not set, disable external UI sending
+            externalUiAvailable = false;
             return;
         }
         
-        // Check message size - UDP has practical limit of ~65507 bytes, but MTU is usually ~1500 bytes
-        // For large messages, we'll skip sending to avoid errors
-        byte[] messageBytes = encodedMessage.getBytes();
-        int practicalMaxSize = 60000; // Use a safe limit below max (65507 is theoretical max)
-        
-        if (messageBytes.length > practicalMaxSize) {
-            System.err.println("Warning: Message too large for UDP (" + messageBytes.length + " bytes). Skipping send to UI.");
-            System.err.println("  Message type: StructuralInfosMsg (too many nodes)");
-            return;
+        // TCP has no size limit, so we can send large messages safely
+        // Note: TcpCommunication.sendMessage() will silently handle connection failures
+        // We track failures separately to disable sending after first failure
+        uiCommunication.sendMessage(uiAddress, encodedMessage);
+    }
+    
+    /**
+     * Call this method when UI connection fails to disable future attempts
+     */
+    public void disableExternalUi() {
+        if (externalUiAvailable) {
+            System.out.println("External UI not available. Disabling external UI message sending. (Local GUI still active)");
+            externalUiAvailable = false;
         }
-        
-        communication.sendMessage(uiAddress, encodedMessage);
     }
     
     // stop network
@@ -235,20 +260,29 @@ public class Supervisor{
     }
 
     public void startSystem(){ // run in main
-        listenerThread = Thread.startVirtualThread(listener::listeningLoop);
+        System.out.println("[Supervisor] Starting system threads...");
+        listener.startListening(); // Start UDP and TCP listener threads
         dispatcherThread = Thread.startVirtualThread(dispatcher::dispatchingLoop);
+        System.out.println("[Supervisor] Dispatcher thread started");
         workerThread = Thread.startVirtualThread(worker::generalFsmLogic);
+        System.out.println("[Supervisor] Worker thread started");
     }
     
     /**
-     * Initialize the supervisor socket to listen for incoming messages
-     * @param supervisorPort Port number for supervisor to listen on
+     * Initialize the supervisor sockets to listen for incoming messages
+     * @param supervisorPort Port number for supervisor to listen on (UDP for nodes, TCP for UI on same port)
      */
     public void initialize(int supervisorPort) {
         this.supervisorPort = supervisorPort;
         Address supervisorAddress = new Address("127.0.0.1", supervisorPort);
-        communication.setupSocket(supervisorAddress);
-        System.out.println("Supervisor initialized and listening on " + supervisorAddress.getIp() + ":" + supervisorAddress.getPort());
+        
+        // Setup UDP socket for nodes
+        nodeCommunication.setupSocket(supervisorAddress);
+        System.out.println("Supervisor UDP socket initialized for nodes on " + supervisorAddress.getIp() + ":" + supervisorAddress.getPort());
+        
+        // Setup TCP socket for UI (on same port - TCP and UDP can share ports)
+        uiCommunication.setupSocket(supervisorAddress);
+        System.out.println("Supervisor TCP server initialized for UI on " + supervisorAddress.getIp() + ":" + supervisorAddress.getPort());
     }
     
     /**

@@ -12,13 +12,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 
 public class Dispatcher {
-    private BlockingQueue<String> msgsQueue;
+    private BlockingQueue<String> udpMsgsQueue;  // Messages from UDP (nodes)
+    private BlockingQueue<String> tcpMsgsQueue;  // Messages from TCP (UI)
     private BlockingQueue<String> nodeQueue;
     private BlockingQueue<String> uiQueue;
     private ObjectMapper objectMapper;
 
-    public Dispatcher(BlockingQueue<String> msgsQueue, BlockingQueue<String> nodeQueue, BlockingQueue<String> uiQueue) {
-        this.msgsQueue = msgsQueue;
+    public Dispatcher(BlockingQueue<String> udpMsgsQueue, BlockingQueue<String> tcpMsgsQueue, 
+                      BlockingQueue<String> nodeQueue, BlockingQueue<String> uiQueue) {
+        this.udpMsgsQueue = udpMsgsQueue;
+        this.tcpMsgsQueue = tcpMsgsQueue;
         this.nodeQueue = nodeQueue;
         this.uiQueue = uiQueue;
         this.objectMapper = new ObjectMapper();
@@ -26,21 +29,35 @@ public class Dispatcher {
 
     public void dispatchingLoop(){
         while(true) {
-        try {
-            String consumedMsg = msgsQueue.take();
-            String direction = getDirection(consumedMsg);
-            String messageType = getMessageType(consumedMsg);
-
-                if(Direction.ui_to_supervisor.toString().equals(direction) && isUiMessageType(messageType)){
-                    System.out.println("[Supervisor] Received UI message: " + messageType);
-                    uiQueue.put(consumedMsg);
+            try {
+                // Check TCP queue first (UI messages have priority) - non-blocking
+                String consumedMsg = tcpMsgsQueue.poll();
+                
+                // If no TCP message, check UDP queue - non-blocking
+                if (consumedMsg == null) {
+                    consumedMsg = udpMsgsQueue.poll();
                 }
-                else if(Direction.node_to_supervisor.toString().equals(direction) && isNodeMessageType(messageType)){
-                    System.out.println("[Supervisor] Received node message: " + messageType);
-                    nodeQueue.put(consumedMsg);
-                }
+                
+                // If we have a message, process it
+                if (consumedMsg != null) {
+                    String direction = getDirection(consumedMsg);
+                    String messageType = getMessageType(consumedMsg);
 
-                Thread.onSpinWait();
+                    if(Direction.ui_to_supervisor.toString().equals(direction) && isUiMessageType(messageType)){
+                        System.out.println("[Dispatcher] Routing UI message to uiQueue: " + messageType);
+                        uiQueue.put(consumedMsg);
+                    }
+                    else if(Direction.node_to_supervisor.toString().equals(direction) && isNodeMessageType(messageType)){
+                        System.out.println("[Dispatcher] Routing node message to nodeQueue: " + messageType);
+                        nodeQueue.put(consumedMsg);
+                    }
+                    else {
+                        System.out.println("[Dispatcher] WARNING: Message not routed! direction=" + direction + ", messageType=" + messageType);
+                    }
+                } else {
+                    // No messages in either queue - small sleep to avoid busy-waiting
+                    Thread.sleep(1);
+                }
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

@@ -259,8 +259,20 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
 
                         // Reply only if we have a more recent version
                         if (storedTimestamp > reqTimestamp) {
+                            // Create new SpreadMsg with updated originId (this node is now the origin)
+                            MessageId storedMsgId = storedMessage.getId();
+                            SpreadMsg forwardMsg = new SpreadMsg(
+                                epidemic_core.message.common.Direction.node_to_node.toString(),
+                                epidemic_core.message.node_to_node.NodeToNodeMessageType.spread.toString(),
+                                storedMsgId.topic().subject(),
+                                storedMsgId.topic().sourceId(),
+                                storedMsgId.timestamp(),
+                                node.getId(), // Update originId to this node (who is replying)
+                                storedMessage.getData()
+                            );
+                            
                             try {
-                                String stringMsg = storedMessage.encode();
+                                String stringMsg = forwardMsg.encode();
                                 node.getCommunication().sendMessage(neighAddress, stringMsg);
                             } catch (java.io.IOException e) {
                                 System.err.println("[Node " + node.getId() + "] Error encoding SpreadMsg: " + e.getMessage());
@@ -284,8 +296,19 @@ public class BlindCoinPullWorker implements epidemic_core.node.mode.pull.general
                         MessageId msgId = message.getId();
                         // Only send if message is not removed
                         if (!node.isMessageRemoved(msgId)) {
+                            // Create new SpreadMsg with updated originId (this node is now the origin)
+                            SpreadMsg forwardMsg = new SpreadMsg(
+                                epidemic_core.message.common.Direction.node_to_node.toString(),
+                                epidemic_core.message.node_to_node.NodeToNodeMessageType.spread.toString(),
+                                msgId.topic().subject(),
+                                msgId.topic().sourceId(),
+                                msgId.timestamp(),
+                                node.getId(), // Update originId to this node (who is replying)
+                                message.getData()
+                            );
+                            
                             try {
-                                String stringMsg = message.encode();
+                                String stringMsg = forwardMsg.encode();
                                 node.getCommunication().sendMessage(neighAddress, stringMsg);
                             } catch (java.io.IOException e) {
                                 System.err.println("[Node " + node.getId() + "] Error encoding SpreadMsg: " + e.getMessage());

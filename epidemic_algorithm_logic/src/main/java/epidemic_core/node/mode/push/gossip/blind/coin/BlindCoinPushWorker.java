@@ -102,9 +102,20 @@ public class BlindCoinPushWorker implements WorkerInterface {
                         continue; // Skip this message, don't spread it
                     }
                     
+                    // Create new SpreadMsg with updated originId (this node is now the origin)
+                    SpreadMsg forwardMsg = new SpreadMsg(
+                        epidemic_core.message.common.Direction.node_to_node.toString(),
+                        epidemic_core.message.node_to_node.NodeToNodeMessageType.spread.toString(),
+                        messageId.topic().subject(),
+                        messageId.topic().sourceId(),
+                        messageId.timestamp(),
+                        node.getId(), // Update originId to this node (who is forwarding)
+                        message.getData()
+                    );
+                    
                     try {
-                    String stringMsg = message.encode();
-                    node.getCommunication().sendMessage(randNeighAdd, stringMsg);
+                        String stringMsg = forwardMsg.encode();
+                        node.getCommunication().sendMessage(randNeighAdd, stringMsg);
                     
                         // After pushing, toss coin with probability 1/k
                         // If successful (coin == true), remove this specific message

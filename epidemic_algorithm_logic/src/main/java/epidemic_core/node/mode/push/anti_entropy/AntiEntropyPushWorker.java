@@ -92,8 +92,20 @@ public class AntiEntropyPushWorker implements WorkerInterface {
             // Send all stored messages to the random neighbour
             if (randNeighAdd != null) {
                 for (SpreadMsg message : storedMessages) {
+                    // Create new SpreadMsg with updated originId (this node is now the origin)
+                    epidemic_core.message.common.MessageId msgId = message.getId();
+                    SpreadMsg forwardMsg = new SpreadMsg(
+                        epidemic_core.message.common.Direction.node_to_node.toString(),
+                        epidemic_core.message.node_to_node.NodeToNodeMessageType.spread.toString(),
+                        msgId.topic().subject(),
+                        msgId.topic().sourceId(),
+                        msgId.timestamp(),
+                        node.getId(), // Update originId to this node (who is forwarding)
+                        message.getData()
+                    );
+                    
                     try {
-                        String stringMsg = message.encode();
+                        String stringMsg = forwardMsg.encode();
                         node.getCommunication().sendMessage(randNeighAdd, stringMsg);
                     } catch (java.io.IOException e) {
                         System.err.println("Error encoding SpreadMsg: " + e.getMessage());

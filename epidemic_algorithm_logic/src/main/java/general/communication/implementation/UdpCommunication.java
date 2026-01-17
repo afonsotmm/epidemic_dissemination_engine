@@ -20,6 +20,7 @@ public class UdpCommunication implements Communication {
             // Bind to specific IP address and port to allow multiple sockets on same port with different IPs
             InetAddress bindAddress = InetAddress.getByName(myAddress.getIp());
             this.socket = new DatagramSocket(myAddress.getPort(), bindAddress);
+            // UDP socket can block - we have a dedicated thread for it
             System.out.println("UDP Socket listening on " + myAddress.getIp() + ":" + myAddress.getPort());
         } catch (SocketException e) {
             System.err.println("Error creating UDP socket on " + myAddress.getIp() + ":" + myAddress.getPort() + ": " + e.getMessage());
@@ -80,7 +81,7 @@ public class UdpCommunication implements Communication {
             byte[] buffer = new byte[BUFFER_SIZE];
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
             
-            // Blocks here until it receives
+            // Blocks here until it receives (now we have a dedicated thread for UDP)
             socket.receive(packet);
             
             // Extract the received message

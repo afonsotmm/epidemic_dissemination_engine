@@ -103,6 +103,11 @@ public class StructuralInfosMsg {
         return objectMapper.writeValueAsString(this);
     }
 
+    public static StructuralInfosMsg decodeMessage(String jsonString) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        return objectMapper.readValue(jsonString, StructuralInfosMsg.class);
+    }
+
     // Getters
     public StructuralInfosHeader getHeader() {return header; }
     public List<NodeInfo> getNodes() { return nodes; }
