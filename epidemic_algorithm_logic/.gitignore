@@ -1,6 +1,9 @@
 # Simulation package
 #src/main/java/simulation/
 
+# Automatic Nodes Launch
+LAUNCH_NODES.bat
+
 # Maven
 target/
 pom.xml.tag

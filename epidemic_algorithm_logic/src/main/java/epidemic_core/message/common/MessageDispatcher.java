@@ -7,6 +7,10 @@ import epidemic_core.message.node_to_node.initial_request.InitialRequestMsg;
 import epidemic_core.message.node_to_node.request.RequestMsg;
 import epidemic_core.message.node_to_node.request_and_spread.RequestAndSpreadMsg;
 import epidemic_core.message.node_to_node.spread.SpreadMsg;
+import epidemic_core.message.node_to_supervisor.hello.HelloMsg;
+import epidemic_core.message.supervisor_to_node.start_node.StartNodeMsg;
+import epidemic_core.message.supervisor_to_node.kill_node.KillNodeMsg;
+import epidemic_core.message.supervisor_to_node.start_round.StartRoundMsg;
 
 import java.io.IOException;
 
@@ -39,9 +43,17 @@ public class MessageDispatcher {
                     default -> throw new IllegalArgumentException("Unknown node_to_node message type: " + messageType);
                 };
             } else if ("supervisor_to_node".equals(direction)) {
-                return null;
+                return switch (messageType) {
+                    case "start_round" -> StartRoundMsg.decodeMessage(jsonString);
+                    case "start_node" -> StartNodeMsg.decodeMessage(jsonString);
+                    case "kill_node" -> KillNodeMsg.decodeMessage(jsonString);
+                    default -> throw new IllegalArgumentException("Unknown supervisor_to_node message type: " + messageType);
+                };
             } else if ("node_to_supervisor".equals(direction)) {
-                return null;
+                return switch (messageType) {
+                    case "hello" -> HelloMsg.decodeMessage(jsonString);
+                    default -> throw new IllegalArgumentException("Unknown node_to_supervisor message type: " + messageType);
+                };
             }
 
             throw new IllegalArgumentException("Unknown direction: " + direction);
@@ -108,6 +120,23 @@ public class MessageDispatcher {
 
     public static boolean isStartRound(String raw) {
         return isSupervisorToNode(raw) && "start_round".equals(getMessageType(raw));
+    }
+
+    public static boolean isStartNode(String raw) {
+        return isSupervisorToNode(raw) && "start_node".equals(getMessageType(raw));
+    }
+
+    public static boolean isKillNode(String raw) {
+        return isSupervisorToNode(raw) && "kill_node".equals(getMessageType(raw));
+    }
+
+    // ------------------------- Node to Supervisor utils -----------------------------------------
+    public static boolean isNodeToSupervisor(String raw) {
+        return "node_to_supervisor".equals(getDirection(raw));
+    }
+
+    public static boolean isHello(String raw) {
+        return isNodeToSupervisor(raw) && "hello".equals(getMessageType(raw));
     }
     // ---------------------------------------------------------------------------------------------
 }

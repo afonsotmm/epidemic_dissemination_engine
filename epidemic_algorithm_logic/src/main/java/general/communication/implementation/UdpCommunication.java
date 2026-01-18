@@ -69,6 +69,38 @@ public class UdpCommunication implements Communication {
         }
     }
 
+    // Send message via UDP broadcast (to 255.255.255.255)
+    public void sendBroadcastMessage(int port, String message) {
+        if (!isSocketReady()) {
+            // Silently fail - socket may not be ready yet or failed to initialize
+            return;
+        }
+
+        try {
+            // Enable broadcast mode
+            socket.setBroadcast(true);
+            
+            // Convert string to bytes
+            byte[] messageBytes = message.getBytes();
+            
+            // Create UDP packet with broadcast address
+            InetAddress broadcastAddress = InetAddress.getByName("255.255.255.255");
+            DatagramPacket packet = new DatagramPacket(
+                messageBytes, 
+                messageBytes.length, 
+                broadcastAddress, 
+                port
+            );
+            
+            // Send packet
+            socket.send(packet);
+            System.out.println("UDP broadcast message sent to 255.255.255.255:" + port);
+        } catch (IOException e) {
+            System.err.println("Error sending UDP broadcast message: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
     @Override
     public String receiveMessage() {
         if (!isSocketReady()) {

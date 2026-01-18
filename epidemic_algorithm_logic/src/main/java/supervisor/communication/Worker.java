@@ -1,7 +1,9 @@
 package supervisor.communication;
 
 import epidemic_core.message.common.Direction;
+import epidemic_core.message.common.MessageDispatcher;
 import epidemic_core.message.node_to_supervisor.NodeToSupervisorMessageType;
+import epidemic_core.message.node_to_supervisor.hello.HelloMsg;
 import epidemic_core.message.node_to_supervisor.infection_update.InfectionUpdateMsg;
 import epidemic_core.message.node_to_supervisor.remotion_update.RemotionUpdateMsg;
 import epidemic_core.message.supervisor_to_ui.SupervisorToUiMessageType;
@@ -154,6 +156,13 @@ public class Worker {
                 
                 String encodedMsg = uiMsg.encode();
                 supervisor.sendToUi(encodedMsg);
+            
+            // HELLO (for distributed deployment mode)
+            } else if (NodeToSupervisorMessageType.hello.toString().equals(messageType) &&
+                       Direction.node_to_supervisor.toString().equals(direction)) {
+                
+                HelloMsg helloMsg = HelloMsg.decodeMessage(msg);
+                supervisor.handleHelloMsg(helloMsg);
             }
             
         } catch (Exception e) {

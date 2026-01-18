@@ -1,19 +1,6 @@
 package supervisor.network_emulation;
 
-import epidemic_core.node.Node;
-import epidemic_core.node.mode.NodeMode;
-import epidemic_core.node.mode.pull.anti_entropy.AntiEntropyPullNode;
-import epidemic_core.node.mode.pull.gossip.GossipPullNode;
-import epidemic_core.node.mode.pull.gossip.blind.coin.BlindCoinPullNode;
-import epidemic_core.node.mode.pull.gossip.feedback.coin.FeedbackCoinPullNode;
-import epidemic_core.node.mode.push.anti_entropy.AntiEntropyPushNode;
-import epidemic_core.node.mode.push.gossip.GossipPushNode;
-import epidemic_core.node.mode.push.gossip.blind.coin.BlindCoinPushNode;
-import epidemic_core.node.mode.push.gossip.feedback.coin.FeedbackCoinPushNode;
-import epidemic_core.node.mode.pushpull.anti_entropy.AntiEntropyPushPullNode;
-import epidemic_core.node.mode.pushpull.gossip.GossipPushPullNode;
-import epidemic_core.node.mode.pushpull.gossip.blind.coin.BlindCoinPushPullNode;
-import epidemic_core.node.mode.pushpull.gossip.feedback.coin.FeedbackCoinPushPullNode;
+import epidemic_core.node.DistributedNodeStub;
 import epidemic_core.message.common.MessageTopic;
 import general.communication.utils.Address;
 import supervisor.network_emulation.neighbors_and_subject.NetworkStructureManager;
@@ -36,7 +23,7 @@ public class NetworkEmulator {
     private NetworkStructureManager networkStructureManager;
     private NodeIdToAddressTable nodeIdToAddressTable;
     
-    private Map<Integer, Object> nodes; // Map<nodeId, Node>
+    private Map<Integer, DistributedNodeStub> nodeStubs; // Map<nodeId, DistributedNodeStub> - nodes start in WAVING mode
     private Map<Integer, Thread> nodeThreads; // Map<nodeId, Thread>
 
     // Constructor
@@ -52,7 +39,7 @@ public class NetworkEmulator {
         this.protocolType = protocolType;
         this.modeType = modeType;
         this.supervisorAddr = supervisorAddr;
-        this.nodes = new HashMap<>();
+        this.nodeStubs = new HashMap<>();
         this.nodeThreads = new HashMap<>();
     }
 
@@ -69,44 +56,45 @@ public class NetworkEmulator {
         // ========== Network Structure Management ==========
         networkStructureManager = new NetworkStructureManager(adjMap, sourceNodes, N);
 
-        NodeMode mode = NodeMode.fromString(modeType); // dissemination mode
-
-        // ========== Generate subscribed topics ==========
-        // Each node is interested in all subjects published by sources (subject + sourceId)
-        List<MessageTopic> subscribedTopics = generateSubscribedTopics();
-
         // ========== RUN ==========
-        // Use CountDownLatch to wait for all nodes to be created
+        // Create DistributedNodeStub for each node (they start in WAVING mode)
+        // Nodes will send HelloMsg and wait for StartNodeMsg from supervisor
+        // Use CountDownLatch to wait for all node stubs to be created
         CountDownLatch creationLatch = new CountDownLatch(N);
         
         for(int id = 0; id < N; id++){
             final int nodeId = id;
-            List<Integer> neighbours = networkStructureManager.getNeighbors(id);
-            String subjectStr = networkStructureManager.getSubjectForNode(id);
-
-            // Create node in a separate virtual thread with delay to avoid socket conflicts
+            Address nodeAddress = nodeIdToAddressTable.get(nodeId);
+            
+            // Create DistributedNodeStub in a separate virtual thread with delay to avoid socket conflicts
             Thread.startVirtualThread(() -> {
                 try {
                     // Small delay to avoid socket creation conflicts
                     Thread.sleep(nodeId * 10); // 10ms delay between each node
                     
-                    Thread nodeThread = runMode(nodeId, neighbours, subjectStr, nodeIdToAddressTable, mode, subscribedTopics);
-                    nodeThreads.put(nodeId, nodeThread);
+                    // Create DistributedNodeStub - node starts in WAVING mode
+                    // It will send HelloMsg via UDP broadcast and wait for StartNodeMsg
+                    DistributedNodeStub stub = new DistributedNodeStub(nodeAddress.getIp(), nodeAddress.getPort());
+                    nodeStubs.put(nodeId, stub);
                     
                     creationLatch.countDown();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
+                } catch (Exception e) {
+                    System.err.println("Error creating DistributedNodeStub for node " + nodeId + ": " + e.getMessage());
+                    e.printStackTrace();
+                    creationLatch.countDown(); // Still count down to avoid blocking
                 }
             });
         }
         
-        // Wait for all nodes to be created before returning
+        // Wait for all node stubs to be created before returning
         try {
             creationLatch.await();
-            System.out.println("All " + N + " nodes created successfully");
+            System.out.println("All " + N + " node stubs created successfully (in WAVING mode)");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            System.err.println("Interrupted while waiting for nodes to be created");
+            System.err.println("Interrupted while waiting for node stubs to be created");
         }
     }
     
@@ -130,74 +118,17 @@ public class NetworkEmulator {
         return topics;
     }
 
-    // Run the thread for each node
-    public Thread runMode(Integer id,
-                          List<Integer> neighbours,
-                          String assignedSubjectAsSource,
-                          NodeIdToAddressTable nodeIdToAddressTable,
-                          NodeMode mode,
-                          List<MessageTopic> subscribedTopics)
-    {
-        Node node = createNode(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, mode, subscribedTopics);
-
-        nodes.put(id, node); // to store references to the nodes (for stopping them later)
-
-        Thread t = Thread.startVirtualThread(() -> {
-            if (node instanceof AntiEntropyPullNode n) n.startRunning();
-            else if (node instanceof AntiEntropyPushNode n) n.startRunning();
-            else if (node instanceof AntiEntropyPushPullNode n) n.startRunning();
-            else if (node instanceof GossipPullNode n) n.startRunning();
-            else if (node instanceof GossipPushNode n) n.startRunning();
-            else if (node instanceof GossipPushPullNode n) n.startRunning();
-        });
-
-        t.setName("Node-" + id);
-        return t;
-    }
-
-    // Create a node based on the mode and protocol
-    private Node createNode(Integer id,
-                            List<Integer> neighbours,
-                            String assignedSubjectAsSource,
-                            NodeIdToAddressTable nodeIdToAddressTable,
-                            NodeMode mode,
-                            List<MessageTopic> subscribedTopics) {
-        
-        String protocol = protocolType != null ? protocolType.toLowerCase() : "anti_entropy";
-        Map<Integer, Address> addressTable = nodeIdToAddressTable.getAll();
-        
-        switch (mode) {
-            case PULL:
-                return switch (protocol) {
-                    case "anti_entropy" -> new AntiEntropyPullNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr);
-                    case "gossip_feedback_coin", "feedback_coin" -> new FeedbackCoinPullNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr, defaultK);
-                    case "gossip_blind_coin", "blind_coin" -> new BlindCoinPullNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr, defaultK);
-                    default -> throw new IllegalArgumentException("Invalid protocol for PULL mode: " + protocol);
-                };
-            
-            case PUSH:
-                return switch (protocol) {
-                    case "anti_entropy" -> new AntiEntropyPushNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr);
-                    case "gossip_feedback_coin", "feedback_coin" -> new FeedbackCoinPushNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr, defaultK);
-                    case "gossip_blind_coin", "blind_coin" -> new BlindCoinPushNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr, defaultK);
-                    default -> throw new IllegalArgumentException("Invalid protocol for PUSH mode: " + protocol);
-                };
-            
-            case PUSHPULL:
-                return switch (protocol) {
-                    case "anti_entropy" -> new AntiEntropyPushPullNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr);
-                    case "gossip_feedback_coin", "feedback_coin" -> new FeedbackCoinPushPullNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr, defaultK);
-                    case "gossip_blind_coin", "blind_coin" -> new BlindCoinPushPullNode(id, neighbours, assignedSubjectAsSource, addressTable, subscribedTopics, supervisorAddr, defaultK);
-                    default -> throw new IllegalArgumentException("Invalid protocol for PUSHPULL mode: " + protocol);
-                };
-            
-            default:
-                throw new IllegalArgumentException("Invalid mode: " + mode);
-        }
-    }
+    // Note: Nodes are now created by DistributedNodeStub after receiving StartNodeMsg
+    // The NetworkEmulator only creates the stubs in WAVING mode
     
-    // Stop all nodes
+    // Stop all node stubs
     public void stopNetwork() {
+        for (Map.Entry<Integer, DistributedNodeStub> entry : nodeStubs.entrySet()) {
+            DistributedNodeStub stub = entry.getValue();
+            if (stub != null) {
+                stub.stop();
+            }
+        }
         for (Map.Entry<Integer, Thread> entry : nodeThreads.entrySet()) {
             Thread nodeThread = entry.getValue();
             if (nodeThread != null) {
@@ -226,9 +157,9 @@ public class NetworkEmulator {
     }
     
     /**
-     * Get all nodes map (for direct access)
+     * Get all node stubs map (for direct access)
      */
-    public Map<Integer, Object> getNodes() {
-        return nodes;
+    public Map<Integer, DistributedNodeStub> getNodeStubs() {
+        return nodeStubs;
     }
 }

@@ -5,6 +5,7 @@ import epidemic_core.node.mode.push.general.components.Listener;
 import epidemic_core.node.mode.push.general.components.WorkerInterface;
 import epidemic_core.node.AntiEntropyNode;
 import epidemic_core.message.common.MessageTopic;
+import general.communication.Communication;
 import general.communication.utils.Address;
 
 import java.util.List;
@@ -26,15 +27,26 @@ public class AntiEntropyPushNode extends AntiEntropyNode {
     protected BlockingQueue<String> pushMsgs;
     protected BlockingQueue<String> startRoundMsgs;
 
-    // Constructor
+    // Constructor (uses default UdpCommunication)
     public AntiEntropyPushNode(Integer id,
                     List<Integer> neighbours,
                     String assignedSubjectAsSource,
                     Map<Integer, Address> nodeIdToAddressTable,
                     List<MessageTopic> subscribedTopics,
                     Address supervisorAddress) {
+        this(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress, null);
+    }
 
-        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress);
+    // Constructor with optional Communication (used by DistributedNodeStub)
+    public AntiEntropyPushNode(Integer id,
+                    List<Integer> neighbours,
+                    String assignedSubjectAsSource,
+                    Map<Integer, Address> nodeIdToAddressTable,
+                    List<MessageTopic> subscribedTopics,
+                    Address supervisorAddress,
+                    Communication existingCommunication) {
+
+        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress, existingCommunication);
 
         this.receivedMsgsQueue    = new LinkedBlockingQueue<>();
         this.pushMsgs             = new LinkedBlockingQueue<>();

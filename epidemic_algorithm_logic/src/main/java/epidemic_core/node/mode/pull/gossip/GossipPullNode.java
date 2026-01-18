@@ -5,6 +5,7 @@ import epidemic_core.node.mode.pull.general.components.Listener;
 import epidemic_core.node.mode.pull.general.components.WorkerInterface;
 import epidemic_core.node.GossipNode;
 import epidemic_core.message.common.MessageTopic;
+import general.communication.Communication;
 import general.communication.utils.Address;
 
 import java.util.List;
@@ -30,15 +31,26 @@ public abstract class GossipPullNode extends GossipNode {
     protected BlockingQueue<String> requestMsgs;
     protected BlockingQueue<String> startRoundMsgs;
 
-    // Constructor
+    // Constructor (uses default UdpCommunication)
     public GossipPullNode(Integer id,
                          List<Integer> neighbours,
                          String assignedSubjectAsSource,
                          Map<Integer, Address> nodeIdToAddressTable,
                          List<MessageTopic> subscribedTopics,
                          Address supervisorAddress) {
+        this(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress, null);
+    }
 
-        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress);
+    // Constructor with optional Communication (used by DistributedNodeStub)
+    public GossipPullNode(Integer id,
+                         List<Integer> neighbours,
+                         String assignedSubjectAsSource,
+                         Map<Integer, Address> nodeIdToAddressTable,
+                         List<MessageTopic> subscribedTopics,
+                         Address supervisorAddress,
+                         Communication existingCommunication) {
+
+        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress, existingCommunication);
 
         this.msgsQueue    = new LinkedBlockingQueue<>();
         this.replyMsgs    = new LinkedBlockingQueue<>();

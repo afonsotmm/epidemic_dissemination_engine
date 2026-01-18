@@ -71,7 +71,12 @@ public class AntiEntropyPushWorker implements WorkerInterface {
     // ======================================================= //
     // return true if startRoundMsgs isn't empty
     public void checkForStartSignal() {
-        startSignal = (startRoundMsgs.poll() != null);
+        if (startRoundMsgs.poll() != null) {
+            startSignal = true;
+            System.out.println("[Node " + node.getId() + "] StartRoundMsg processed - starting push round");
+        } else {
+            startSignal = false;
+        }
     }
 
 
@@ -107,8 +112,9 @@ public class AntiEntropyPushWorker implements WorkerInterface {
                     try {
                         String stringMsg = forwardMsg.encode();
                         node.getCommunication().sendMessage(randNeighAdd, stringMsg);
+                        System.out.println("[Node " + node.getId() + "] Sent SpreadMsg (subject='" + msgId.topic().subject() + "', sourceId=" + msgId.topic().sourceId() + ") to neighbor " + randNeighId + " at " + randNeighAdd);
                     } catch (java.io.IOException e) {
-                        System.err.println("Error encoding SpreadMsg: " + e.getMessage());
+                        System.err.println("[Node " + node.getId() + "] Error encoding/sending SpreadMsg: " + e.getMessage());
                         e.printStackTrace();
                     }
                 }

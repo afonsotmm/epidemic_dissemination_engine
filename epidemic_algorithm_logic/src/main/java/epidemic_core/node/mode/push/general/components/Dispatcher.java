@@ -31,6 +31,7 @@ public class Dispatcher {
                 } else if (MessageDispatcher.isFeedback(consumedMsg)) {
                     pushMsgs.put(consumedMsg);
                 } else if (MessageDispatcher.isStartRound(consumedMsg)) {
+                    System.out.println("[Dispatcher] Received StartRoundMsg - triggering round");
                     startRoundMsgs.put(consumedMsg);
                 }
 

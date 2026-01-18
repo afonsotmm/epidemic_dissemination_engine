@@ -11,6 +11,7 @@ import org.jfree.data.category.DefaultCategoryDataset;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -46,6 +47,29 @@ public class SupervisorGui {
     private JTextArea messagesArea;
     private JLabel selectedNodeLabel;
     private javax.swing.Timer refreshTimer;
+    
+    // Discovered nodes table
+    private JTable discoveredNodesTable;
+    private DefaultTableModel discoveredNodesTableModel;
+    private JLabel discoveredNodesStatusLabel;
+    
+    // Discovered nodes tracking
+    private static class DiscoveredNodeInfo {
+        final int nodeId;
+        final String tcpAddress;
+        final String udpAddress;
+        final LocalDateTime discoveryTime;
+        
+        DiscoveredNodeInfo(int nodeId, String tcpAddress, String udpAddress) {
+            this.nodeId = nodeId;
+            this.tcpAddress = tcpAddress;
+            this.udpAddress = udpAddress;
+            this.discoveryTime = LocalDateTime.now();
+        }
+    }
+    
+    private final Map<Integer, DiscoveredNodeInfo> discoveredNodes; // nodeId -> node info
+    private LocalDateTime searchingStartTime;
     
     // Network info
     private final int numberOfNodes;
@@ -95,6 +119,8 @@ public class SupervisorGui {
         this.sourceNodes = new ConcurrentHashMap<>();
         this.infectionsPerRound = new ConcurrentHashMap<>();
         this.uniqueInfectedNodes = ConcurrentHashMap.newKeySet();
+        this.discoveredNodes = new ConcurrentHashMap<>();
+        this.searchingStartTime = null;
         
         // Initialize infection history for all nodes
         for (int i = 0; i < numberOfNodes; i++) {
@@ -123,6 +149,10 @@ public class SupervisorGui {
         showChartButton.addActionListener(e -> generateInfectionChart());
         chartPanel.add(showChartButton, BorderLayout.NORTH);
         tabbedPane.addTab("Charts", chartPanel);
+        
+        // Discovered Nodes tab
+        JPanel discoveredNodesPanel = initializeDiscoveredNodesPanel();
+        tabbedPane.addTab("Discovered Nodes", discoveredNodesPanel);
         
         // Nodes tab
         initializeNodeGui();
@@ -185,6 +215,195 @@ public class SupervisorGui {
         
         nodeGuiFrame.pack();
         nodeGuiFrame.setLocationRelativeTo(null);
+    }
+    
+    /**
+     * Initialize discovered nodes panel with table
+     */
+    private JPanel initializeDiscoveredNodesPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(new TitledBorder("Nodes Discovered During SEARCHING Mode"));
+        
+        // Create table model with more columns
+        String[] columnNames = {"Node ID", "TCP Address", "UDP Address", "Discovery Time"};
+        discoveredNodesTableModel = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false; // Make table read-only
+            }
+            
+            @Override
+            public Class<?> getColumnClass(int column) {
+                if (column == 0) return Integer.class; // Node ID
+                return String.class; // Addresses and Time
+            }
+        };
+        
+        // Create table
+        discoveredNodesTable = new JTable(discoveredNodesTableModel);
+        discoveredNodesTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        discoveredNodesTable.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
+        discoveredNodesTable.getTableHeader().setReorderingAllowed(false);
+        discoveredNodesTable.setRowHeight(20);
+        
+        // Set column widths
+        discoveredNodesTable.getColumnModel().getColumn(0).setPreferredWidth(60);   // Node ID
+        discoveredNodesTable.getColumnModel().getColumn(1).setPreferredWidth(180);  // TCP Address
+        discoveredNodesTable.getColumnModel().getColumn(2).setPreferredWidth(180);  // UDP Address
+        discoveredNodesTable.getColumnModel().getColumn(3).setPreferredWidth(160);  // Discovery Time
+        
+        // Add table to scroll pane
+        JScrollPane scrollPane = new JScrollPane(discoveredNodesTable);
+        scrollPane.setPreferredSize(new Dimension(650, 350));
+        panel.add(scrollPane, BorderLayout.CENTER);
+        
+        // Status panel with more information
+        JPanel statusPanel = new JPanel(new BorderLayout());
+        statusPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        
+        discoveredNodesStatusLabel = new JLabel("No nodes discovered yet");
+        discoveredNodesStatusLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+        statusPanel.add(discoveredNodesStatusLabel, BorderLayout.CENTER);
+        
+        // Auto-refresh status label every second to update elapsed time
+        javax.swing.Timer statusTimer = new javax.swing.Timer(1000, e -> updateDiscoveredNodesStatus());
+        statusTimer.start();
+        
+        panel.add(statusPanel, BorderLayout.SOUTH);
+        
+        return panel;
+    }
+    
+    /**
+     * Record a discovered node (called by Supervisor when HelloMsg is received)
+     */
+    public void recordDiscoveredNode(int nodeId, String tcpAddress, String udpAddress) {
+        if (searchingStartTime == null) {
+            searchingStartTime = LocalDateTime.now();
+        }
+        discoveredNodes.put(nodeId, new DiscoveredNodeInfo(nodeId, tcpAddress, udpAddress));
+        SwingUtilities.invokeLater(() -> updateDiscoveredNodesTable());
+    }
+    
+    /**
+     * Overloaded method for backward compatibility (only TCP address)
+     */
+    public void recordDiscoveredNode(int nodeId, String tcpAddress) {
+        recordDiscoveredNode(nodeId, tcpAddress, "N/A");
+    }
+    
+    /**
+     * Update the discovered nodes table with current data
+     */
+    private void updateDiscoveredNodesTable() {
+        if (discoveredNodesTableModel == null) {
+            return; // Table not initialized yet
+        }
+        
+        // Clear existing rows
+        discoveredNodesTableModel.setRowCount(0);
+        
+        // Add discovered nodes sorted by node ID
+        List<Integer> sortedNodeIds = new ArrayList<>(discoveredNodes.keySet());
+        Collections.sort(sortedNodeIds);
+        
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
+        
+        for (Integer nodeId : sortedNodeIds) {
+            DiscoveredNodeInfo info = discoveredNodes.get(nodeId);
+            if (info != null) {
+                String discoveryTimeStr = info.discoveryTime.format(timeFormatter);
+                discoveredNodesTableModel.addRow(new Object[]{
+                    info.nodeId,
+                    info.tcpAddress,
+                    info.udpAddress,
+                    discoveryTimeStr
+                });
+            }
+        }
+        
+        updateDiscoveredNodesStatus();
+    }
+    
+    /**
+     * Update the status label with progress and elapsed time
+     */
+    private void updateDiscoveredNodesStatus() {
+        if (discoveredNodesStatusLabel == null) {
+            return;
+        }
+        
+        int count = discoveredNodes.size();
+        StringBuilder status = new StringBuilder();
+        
+        status.append("<html>");
+        status.append("<b>Status:</b> ");
+        
+        if (count == 0) {
+            status.append("No nodes discovered yet");
+            if (searchingStartTime != null) {
+                long elapsedSeconds = java.time.Duration.between(searchingStartTime, LocalDateTime.now()).getSeconds();
+                status.append(" | Elapsed: ").append(formatDuration(elapsedSeconds));
+            }
+        } else {
+            status.append(count).append(" node(s) discovered");
+            
+            if (numberOfNodes > 0) {
+                double percentage = (count * 100.0) / numberOfNodes;
+                status.append(" (").append(count).append("/").append(numberOfNodes).append(" - ");
+                status.append(String.format("%.1f", percentage)).append("%)");
+                
+                // Add progress indicator
+                int progressBars = (int) (percentage / 5); // 5% per bar
+                status.append(" [");
+                for (int i = 0; i < 20; i++) {
+                    status.append(i < progressBars ? "█" : "░");
+                }
+                status.append("]");
+            }
+            
+            if (searchingStartTime != null) {
+                long elapsedSeconds = java.time.Duration.between(searchingStartTime, LocalDateTime.now()).getSeconds();
+                status.append(" | Elapsed: ").append(formatDuration(elapsedSeconds));
+                
+                // Show discovery rate if more than one node
+                if (count > 1 && elapsedSeconds > 0) {
+                    double rate = count / (double) elapsedSeconds;
+                    status.append(" | Rate: ").append(String.format("%.2f", rate)).append(" nodes/sec");
+                }
+                
+                // Show estimated time to complete (if searching is active)
+                if (numberOfNodes > count && count > 0) {
+                    long avgTimePerNode = elapsedSeconds / count;
+                    long remainingNodes = numberOfNodes - count;
+                    long estimatedSeconds = avgTimePerNode * remainingNodes;
+                    if (estimatedSeconds > 0 && estimatedSeconds < 300) { // Only show if less than 5 minutes
+                        status.append(" | ETA: ").append(formatDuration(estimatedSeconds));
+                    }
+                }
+            }
+        }
+        
+        status.append("</html>");
+        discoveredNodesStatusLabel.setText(status.toString());
+    }
+    
+    /**
+     * Format duration in seconds to human-readable format
+     */
+    private String formatDuration(long seconds) {
+        if (seconds < 60) {
+            return seconds + "s";
+        } else if (seconds < 3600) {
+            long mins = seconds / 60;
+            long secs = seconds % 60;
+            return mins + "m " + secs + "s";
+        } else {
+            long hours = seconds / 3600;
+            long mins = (seconds % 3600) / 60;
+            long secs = seconds % 60;
+            return hours + "h " + mins + "m " + secs + "s";
+        }
     }
     
     /**

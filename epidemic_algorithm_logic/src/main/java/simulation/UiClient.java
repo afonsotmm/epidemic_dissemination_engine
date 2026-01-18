@@ -29,11 +29,12 @@ public class UiClient {
     private static int supervisorPort = 7000;
     private static String uiHost = "127.0.0.2";
     private static int uiPort = 8000;
-    private static int numberOfNodes = 10;
+    private static int numberOfNodes = 300;
     private static int numberOfSourceNodes = 1;
     private static String topology = "full mesh";
     private static String protocol = "anti_entropy";
     private static String mode = "push";
+    private static String deployment = "local"; // "local" or "distributed"
 
     private static NetworkGraphGui graphGui;
     private static TcpCommunication tcpServer;
@@ -183,6 +184,7 @@ public class UiClient {
             startMsgMap.put("topology", topology);
             startMsgMap.put("protocol", protocol);
             startMsgMap.put("mode", mode);
+            startMsgMap.put("deployment", deployment);
             
             String jsonMessage;
             try {
@@ -200,6 +202,7 @@ public class UiClient {
             System.out.println("  Topology: " + topology);
             System.out.println("  Protocol: " + protocol);
             System.out.println("  Mode: " + mode);
+            System.out.println("  Deployment: " + deployment);
             System.out.println("================================================");
             
             // Send message via TCP

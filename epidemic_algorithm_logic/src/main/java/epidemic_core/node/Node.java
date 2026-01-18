@@ -32,7 +32,8 @@ public abstract class Node {
     protected String assignedSubjectAsSource;
     protected Map<Integer, Address> nodeIdToAddressTable;
     protected Address supervisorAddress;
-    protected Communication communication;
+    protected Communication communication; // UDP for node-to-node communication
+    protected Communication supervisorTcpCommunication; // TCP for supervisor communication (distributed mode)
 
     // Subject+SourceId that this node has interest
     protected List<MessageTopic> subscribedTopics;
@@ -43,13 +44,24 @@ public abstract class Node {
     // Flag to control if node is still running (to stop logs after convergence)
     protected volatile boolean isRunning;
 
-    // Constructor
+    // Constructor (uses default UdpCommunication)
     public Node(Integer id,
                 List<Integer> neighbours,
                 String assignedSubjectAsSource,
                 Map<Integer, Address> nodeIdToAddressTable,
                 List<MessageTopic> subscribedTopics,
                 Address supervisorAddress) {
+        this(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress, null);
+    }
+
+    // Constructor with optional Communication (used by DistributedNodeStub to reuse existing socket)
+    public Node(Integer id,
+                List<Integer> neighbours,
+                String assignedSubjectAsSource,
+                Map<Integer, Address> nodeIdToAddressTable,
+                List<MessageTopic> subscribedTopics,
+                Address supervisorAddress,
+                Communication existingCommunication) {
 
         this.id = id;
         this.neighbours = neighbours;
@@ -58,15 +70,20 @@ public abstract class Node {
         this.supervisorAddress = supervisorAddress;
         this.subscribedTopics = subscribedTopics != null ? new ArrayList<>(subscribedTopics) : new ArrayList<>();
         this.storedMessages = new ConcurrentHashMap<>();
-        this.communication = new UdpCommunication();
         this.isRunning = true; // Node starts as running
 
-        // Initialize the socket to listen for incoming messages
-        Address myAddress = nodeIdToAddressTable.get(id);
-        if (myAddress != null) {
-            this.communication.setupSocket(myAddress);
+        // Use existing Communication if provided (from DistributedNodeStub), otherwise create new UDP
+        if (existingCommunication != null) {
+            this.communication = existingCommunication;
         } else {
-            System.err.println("Warning: Node " + id + " address not found in nodeIdToAddressTable");
+            this.communication = new UdpCommunication();
+            // Initialize the socket to listen for incoming messages
+            Address myAddress = nodeIdToAddressTable.get(id);
+            if (myAddress != null) {
+                this.communication.setupSocket(myAddress);
+            } else {
+                System.err.println("Warning: Node " + id + " address not found in nodeIdToAddressTable");
+            }
         }
 
         if(assignedSubjectAsSource != null) {
@@ -175,7 +192,12 @@ public abstract class Node {
         
         try {
             String encodedMessage = infectionUpdateMsg.encode();
-            communication.sendMessage(supervisorAddress, encodedMessage);
+            // Use TCP if available (distributed mode), otherwise use UDP (local mode)
+            if (supervisorTcpCommunication != null) {
+                supervisorTcpCommunication.sendMessage(supervisorAddress, encodedMessage);
+            } else {
+                communication.sendMessage(supervisorAddress, encodedMessage);
+            }
         } catch (IOException e) {
             System.err.println("Error encoding InfectionUpdateMsg: " + e.getMessage());
             e.printStackTrace();

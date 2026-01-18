@@ -104,6 +104,8 @@ public class Dispatcher {
 
     private boolean isNodeMessageType(String messageType) {
         if (messageType == null) return false;
-        return "infection_update".equals(messageType) || "remotion_update".equals(messageType);
+        return "infection_update".equals(messageType) || 
+               "remotion_update".equals(messageType) || 
+               "hello".equals(messageType);
     }
 }

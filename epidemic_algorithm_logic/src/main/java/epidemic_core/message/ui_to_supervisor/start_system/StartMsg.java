@@ -20,6 +20,7 @@ public class StartMsg {
     private String topology;
     private String protocol;
     private String mode;
+    private String deployment; // "local" or "distributed"
 
     // Constructor
     @JsonCreator
@@ -30,7 +31,8 @@ public class StartMsg {
                      @JsonProperty("sourceNodes") Integer sourceNodes,
                      @JsonProperty("topology") String topology,
                      @JsonProperty("protocol") String protocol,
-                     @JsonProperty("mode") String mode) {
+                     @JsonProperty("mode") String mode,
+                     @JsonProperty("deployment") String deployment) {
          
         if (direction != null && !Direction.ui_to_supervisor.toString().equals(direction)) {
             throw new IllegalArgumentException("Invalid direction for StartRoundMsg: " + direction);
@@ -45,6 +47,7 @@ public class StartMsg {
         this.topology = topology;
         this.protocol = protocol;
         this.mode = mode;
+        this.deployment = deployment != null ? deployment : "local"; // Default to "local" if not provided
     }
 
     public static StartMsg decodeMessage(String jsonString) throws IOException {
@@ -61,6 +64,7 @@ public class StartMsg {
     public String getTopology() { return topology; }
     public String getProtocol() { return protocol; }
     public String getMode() { return mode; }
+    public String getDeployment() { return deployment; }
 
     @JsonProperty("direction")
     public String getDirection() {

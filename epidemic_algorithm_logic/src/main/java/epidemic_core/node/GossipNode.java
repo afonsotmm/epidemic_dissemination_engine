@@ -5,6 +5,7 @@ import epidemic_core.message.common.MessageId;
 import epidemic_core.message.common.MessageTopic;
 import epidemic_core.message.node_to_supervisor.NodeToSupervisorMessageType;
 import epidemic_core.message.node_to_supervisor.remotion_update.RemotionUpdateMsg;
+import general.communication.Communication;
 import general.communication.utils.Address;
 
 import java.io.IOException;
@@ -25,7 +26,7 @@ public abstract class GossipNode extends Node {
     protected Set<MessageId> removedMessages;
     private static final Random rand = new Random();
 
-    // Constructor
+    // Constructor (uses default UdpCommunication)
     public GossipNode(Integer id,
                      List<Integer> neighbours,
                      String assignedSubjectAsSource,
@@ -33,6 +34,18 @@ public abstract class GossipNode extends Node {
                      List<MessageTopic> subscribedTopics,
                      Address supervisorAddress) {
         super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress);
+        this.removedMessages = ConcurrentHashMap.newKeySet(); // Thread-safe Set
+    }
+
+    // Constructor with optional Communication (used by DistributedNodeStub)
+    public GossipNode(Integer id,
+                     List<Integer> neighbours,
+                     String assignedSubjectAsSource,
+                     Map<Integer, Address> nodeIdToAddressTable,
+                     List<MessageTopic> subscribedTopics,
+                     Address supervisorAddress,
+                     Communication existingCommunication) {
+        super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress, existingCommunication);
         this.removedMessages = ConcurrentHashMap.newKeySet(); // Thread-safe Set
     }
 
@@ -65,7 +78,12 @@ public abstract class GossipNode extends Node {
         
         try {
             String encodedMessage = remotionUpdateMsg.encode();
-            communication.sendMessage(supervisorAddress, encodedMessage);
+            // Use TCP if available (distributed mode), otherwise use UDP (local mode)
+            if (supervisorTcpCommunication != null) {
+                supervisorTcpCommunication.sendMessage(supervisorAddress, encodedMessage);
+            } else {
+                communication.sendMessage(supervisorAddress, encodedMessage);
+            }
         } catch (IOException e) {
             System.err.println("Error encoding RemotionUpdateMsg: " + e.getMessage());
             e.printStackTrace();

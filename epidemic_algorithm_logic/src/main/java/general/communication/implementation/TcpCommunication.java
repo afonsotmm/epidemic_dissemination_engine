@@ -28,15 +28,21 @@ public class TcpCommunication implements Communication {
         this.isRunning = true;
         
         try {
-            // Create server socket to listen for incoming connections
-            this.serverSocket = new ServerSocket(myAddress.getPort());
+            // Bind to specific IP address to allow multiple sockets on same port with different IPs
+            // Similar to UdpCommunication - bind to specific InetAddress instead of 0.0.0.0
+            java.net.InetAddress bindAddress = java.net.InetAddress.getByName(myAddress.getIp());
+            // ServerSocket(port, backlog, bindAddress) - backlog 0 uses system default
+            this.serverSocket = new ServerSocket(myAddress.getPort(), 0, bindAddress);
             System.out.println("TCP Server listening on " + myAddress.getIp() + ":" + myAddress.getPort());
             
             // Start thread to accept connections
             serverThread = Thread.startVirtualThread(this::acceptConnections);
         } catch (IOException e) {
             System.err.println("Error creating TCP server socket on " + myAddress.getIp() + ":" + myAddress.getPort() + ": " + e.getMessage());
-            e.printStackTrace();
+            // Don't print full stack trace for "Address already in use" - it's expected with many nodes if IP is not properly bound
+            if (!e.getMessage().contains("Address already in use") && !e.getMessage().contains("already in use")) {
+                e.printStackTrace();
+            }
         }
     }
 
