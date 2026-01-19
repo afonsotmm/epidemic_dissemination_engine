@@ -15,7 +15,7 @@ import java.util.Scanner;
  * - Supervisor monitors infections
  * - Complete graph topology (all nodes connected)
  * 
- * NOTE: This is the OLD simulation supervisor. 
+ * NOTE: This is the OLD simulation supervisor.
  * The NEW supervisor is in: supervisor.Supervisor
  * 
  * To run this OLD simulation supervisor explicitly, use:
@@ -24,7 +24,8 @@ import java.util.Scanner;
 public class SupervisorSimulator {
 
     /**
-     * Main entry point - redirects to new supervisor unless explicitly called with "simulation" argument
+     * Main entry point - redirects to new supervisor unless explicitly called with
+     * "simulation" argument
      */
     public static void main(String[] args) {
         // If explicitly called with "simulation" argument, run the old simulation
@@ -32,7 +33,7 @@ public class SupervisorSimulator {
             simulationMain(args);
             return;
         }
-        
+
         // Otherwise, inform user to use the new supervisor
         System.out.println("================================================");
         System.out.println("This is the OLD simulation supervisor.");
@@ -52,44 +53,51 @@ public class SupervisorSimulator {
      */
     public static void simulationMain(String[] args) {
         // Configuration
-        int numberOfNodes = 1000;  // Number of nodes to create
-        int nodePort = 5000;       // Port for all nodes (same port, different IPs: 127.0.0.1, 127.0.0.2, ..., 127.0.X.0)
+        int numberOfNodes = 1000; // Number of nodes to create
+        int nodePort = 5000; // Port for all nodes (same port, different IPs: 127.0.0.1, 127.0.0.2, ...,
+                             // 127.0.X.0)
         int supervisorPort = 6000; // Supervisor port
         double roundInterval = 1.0; // Round interval in seconds
-        Supervisor.NodeMode nodeMode = Supervisor.NodeMode.FEEDBACK_COIN_PUSHPULL; // PULL, PUSH, PUSHPULL, BLIND_COIN_PUSH, BLIND_COIN_PULL, BLIND_COIN_PUSHPULL, FEEDBACK_COIN_PUSH, FEEDBACK_COIN_PULL, FEEDBACK_COIN_PUSHPULL
-        double blindCoinK = 2; // Probability parameter for Blind Coin and Feedback Coin (1/k chance to stop spreading). Used for BLIND_COIN_* and FEEDBACK_COIN_* modes
-        
+        Supervisor.NodeMode nodeMode = Supervisor.NodeMode.FEEDBACK_COIN_PUSHPULL; // PULL, PUSH, PUSHPULL,
+                                                                                   // BLIND_COIN_PUSH, BLIND_COIN_PULL,
+                                                                                   // BLIND_COIN_PUSHPULL,
+                                                                                   // FEEDBACK_COIN_PUSH,
+                                                                                   // FEEDBACK_COIN_PULL,
+                                                                                   // FEEDBACK_COIN_PUSHPULL
+        double blindCoinK = 2; // Probability parameter for Blind Coin and Feedback Coin (1/k chance to stop
+                               // spreading). Used for BLIND_COIN_* and FEEDBACK_COIN_* modes
+
         // Create supervisor
         Supervisor supervisor;
-        if (nodeMode == Supervisor.NodeMode.BLIND_COIN_PUSH || 
-            nodeMode == Supervisor.NodeMode.BLIND_COIN_PULL || 
-            nodeMode == Supervisor.NodeMode.BLIND_COIN_PUSHPULL ||
-            nodeMode == Supervisor.NodeMode.FEEDBACK_COIN_PUSH ||
-            nodeMode == Supervisor.NodeMode.FEEDBACK_COIN_PULL ||
-            nodeMode == Supervisor.NodeMode.FEEDBACK_COIN_PUSHPULL) {
+        if (nodeMode == Supervisor.NodeMode.BLIND_COIN_PUSH ||
+                nodeMode == Supervisor.NodeMode.BLIND_COIN_PULL ||
+                nodeMode == Supervisor.NodeMode.BLIND_COIN_PUSHPULL ||
+                nodeMode == Supervisor.NodeMode.FEEDBACK_COIN_PUSH ||
+                nodeMode == Supervisor.NodeMode.FEEDBACK_COIN_PULL ||
+                nodeMode == Supervisor.NodeMode.FEEDBACK_COIN_PUSHPULL) {
             supervisor = new Supervisor(numberOfNodes, nodePort, supervisorPort, nodeMode, blindCoinK);
         } else {
             supervisor = new Supervisor(numberOfNodes, nodePort, supervisorPort, nodeMode);
         }
-        
+
         // Initialize supervisor (starts listening)
         supervisor.initialize();
-        
+
         // Define which nodes are sources and for which subjects
         // 3 nodes are sources with different subjects
         Map<Integer, String> subjectsForNodes = new HashMap<>();
         subjectsForNodes.put(1, "temperature");
         // Other nodes are not sources (will be null)
-        
+
         // Create and start all nodes
         supervisor.createAndStartNodes(subjectsForNodes);
-        
+
         // Start monitoring for INFECTED messages
         supervisor.startMonitoring();
-        
+
         // Start automatic round scheduling
         supervisor.startRoundScheduling(roundInterval);
-        
+
         // Create and show GUI
         SwingUtilities.invokeLater(() -> {
             NodeGui gui = new NodeGui(supervisor);
@@ -102,7 +110,7 @@ public class SupervisorSimulator {
                 }
             });
         });
-        
+
         System.out.println("\n=== Epidemic Dissemination System Started (" + nodeMode + " Mode) ===");
         System.out.println("Supervisor monitoring " + numberOfNodes + " nodes");
         System.out.println("Round interval: " + roundInterval + " seconds");
@@ -111,17 +119,19 @@ public class SupervisorSimulator {
         System.out.println("  Enter - Print infection statistics");
         System.out.println("  'state' - Print current state of all nodes (subjects and values)");
         System.out.println("  'chart' - Generate and display infection chart for all subjects and sources");
-        System.out.println("  'chart <subject>' - Generate and display infection chart for specific subject (all sources)");
-        System.out.println("  'chart <subject>:<sourceId>' - Generate and display infection chart for specific subject+source");
+        System.out.println(
+                "  'chart <subject>' - Generate and display infection chart for specific subject (all sources)");
+        System.out.println(
+                "  'chart <subject>:<sourceId>' - Generate and display infection chart for specific subject+source");
         System.out.println("  'subjects' - List all available subject:sourceId combinations");
         System.out.println("  'round' - Manually trigger a round");
         System.out.println("  'q' - Quit\n");
-        
+
         // Interactive loop
         Scanner scanner = new Scanner(System.in);
         while (true) {
             String input = scanner.nextLine().trim();
-            
+
             if (input.equalsIgnoreCase("q")) {
                 break;
             } else if (input.equalsIgnoreCase("state")) {
@@ -155,7 +165,8 @@ public class SupervisorSimulator {
             } else if (input.equalsIgnoreCase("subjects")) {
                 java.util.Set<String> combinations = supervisor.getAllSubjectSourceCombinations();
                 if (combinations.isEmpty()) {
-                    System.out.println("No subject:sourceId combinations found yet. Wait for nodes to generate messages.");
+                    System.out.println(
+                            "No subject:sourceId combinations found yet. Wait for nodes to generate messages.");
                 } else {
                     System.out.println("Available subject:sourceId combinations:");
                     for (String combo : combinations) {
@@ -168,11 +179,10 @@ public class SupervisorSimulator {
                 supervisor.printInfectionStatistics();
             }
         }
-        
+
         // Shutdown
         supervisor.shutdown();
         scanner.close();
         System.out.println("Simulation ended.");
     }
 }
-

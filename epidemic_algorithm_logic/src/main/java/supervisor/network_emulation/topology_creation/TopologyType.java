@@ -1,15 +1,14 @@
 package supervisor.network_emulation.topology_creation;
 
-public enum TopologyType
-{
+public enum TopologyType {
     FULL_MESH,
     PARTIAL_MESH,
     RING,
     STAR;
 
-    public static TopologyType fromString(String input){
+    public static TopologyType fromString(String input) {
 
-        return switch(input.toLowerCase()){
+        return switch (input.toLowerCase()) {
             case "full mesh" -> FULL_MESH;
             case "partial mesh" -> PARTIAL_MESH;
             case "ring" -> RING;

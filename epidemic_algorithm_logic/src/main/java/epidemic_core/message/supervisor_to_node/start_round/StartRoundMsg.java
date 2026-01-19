@@ -11,7 +11,7 @@ import java.io.IOException;
 /**
  * Message Supervisor -> Node: Start round signal
  */
-@JsonPropertyOrder({"direction", "messageType"})
+@JsonPropertyOrder({ "direction", "messageType" })
 public class StartRoundMsg {
 
     private final StartRoundHeader header;
@@ -19,9 +19,10 @@ public class StartRoundMsg {
     // Constructor
     @JsonCreator
     public StartRoundMsg(@JsonProperty("direction") String direction,
-                         @JsonProperty("messageType") String messageType) {
-        
-        if (direction != null && !Direction.supervisor_to_node.toString().equals(direction)) {
+            @JsonProperty("messageType") String messageType) {
+
+        if (direction != null && !Direction.supervisor_to_node.toString().equals(direction)
+                && !Direction.supervisor_to_ui.toString().equals(direction)) {
             throw new IllegalArgumentException("Invalid direction for StartRoundMsg: " + direction);
         }
         if (messageType != null && !SupervisorToNodeMessageType.start_round.toString().equals(messageType)) {
@@ -31,7 +32,9 @@ public class StartRoundMsg {
     }
 
     // Getters
-    public StartRoundHeader getHeader() { return header; }
+    public StartRoundHeader getHeader() {
+        return header;
+    }
 
     @JsonProperty("direction")
     public String getDirection() {

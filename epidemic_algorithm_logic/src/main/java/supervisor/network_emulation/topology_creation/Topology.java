@@ -8,7 +8,8 @@ public class Topology {
     private Map<Integer, List<Integer>> adjMap;
 
     // private Integer n; // number of nodes
-    public Map<Integer, List<Integer>> createTopology(TopologyType type, Integer N) // type of topology chosen and number of nodes
+    public Map<Integer, List<Integer>> createTopology(TopologyType type, Integer N) // type of topology chosen and
+                                                                                    // number of nodes
     {
         return switch (type) {
             case FULL_MESH -> createMesh(N);
@@ -26,7 +27,8 @@ public class Topology {
             List<Integer> neighbours = new ArrayList<>();
 
             for (int j = 0; j < N; j++) {
-                if (j != i) neighbours.add(j);
+                if (j != i)
+                    neighbours.add(j);
             }
 
             adjMap.put(i, neighbours);
@@ -64,8 +66,8 @@ public class Topology {
         for (int i = 0; i < N; i++) {
             List<Integer> neighbours = new ArrayList<>();
 
-            int left = (i - 1 + N) % N;   // left neighbour
-            int right = (i + 1) % N;      // right neighbour
+            int left = (i - 1 + N) % N; // left neighbour
+            int right = (i + 1) % N; // right neighbour
 
             neighbours.add(left);
             neighbours.add(right);
@@ -82,12 +84,12 @@ public class Topology {
         for (int i = 0; i < N; i++) {
             List<Integer> neighbours = new ArrayList<>();
 
-            if(i == 0){ // node 0 is the central node
-                for(int j = 1; j < N; j++){
+            if (i == 0) { // node 0 is the central node
+                for (int j = 1; j < N; j++) {
                     neighbours.add(j);
                 }
-            }
-            else neighbours.add(0);
+            } else
+                neighbours.add(0);
 
             adjMap.put(i, neighbours);
         }
