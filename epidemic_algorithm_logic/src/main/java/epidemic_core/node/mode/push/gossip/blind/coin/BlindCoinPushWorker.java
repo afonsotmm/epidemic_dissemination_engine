@@ -17,11 +17,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 
-
-// Worker for Blind Coin Push protocol.
-// After pushing a message, tosses a coin with probability 1/k.
-// If successful, the node stops spreading that message.
-
 public class BlindCoinPushWorker implements WorkerInterface {
 
     private GossipPushNode node;
@@ -37,7 +32,7 @@ public class BlindCoinPushWorker implements WorkerInterface {
     private volatile boolean startSignal;
 
     private final Random rand = new Random();
-    private final double k; // Probability parameter: 1/k chance to stop spreading
+    private final double k;
 
     public BlindCoinPushWorker(GossipPushNode node, BlockingQueue<String> pushMsgs, BlockingQueue<String> startRoundMsgs, double k) {
         this.node = node;
@@ -54,8 +49,6 @@ public class BlindCoinPushWorker implements WorkerInterface {
         checkForStartSignal();
         pushFsmHandle();
         updateFsmHandle();
-        // Print node state removed - too verbose
-        // node.printNodeState();
     }
 
     public void workingLoop() {
@@ -85,40 +78,33 @@ public class BlindCoinPushWorker implements WorkerInterface {
         List<SpreadMsg> storedMessages = node.getAllStoredMessages();
         List<Integer> neighbours = node.getNeighbours();
 
-        // Only send if there are neighbours and stored messages
         if (neighbours != null && !neighbours.isEmpty() && !storedMessages.isEmpty()) {
-            // Pick a random neighbour
             int randNeighIndex = rand.nextInt(neighbours.size());
             Integer randNeighId = neighbours.get(randNeighIndex);
             Address randNeighAdd = node.getNeighbourAddress(randNeighId);
 
-            // Send all stored messages to the random neighbour (if not removed)
             if (randNeighAdd != null) {
                 for (SpreadMsg message : storedMessages) {
                     MessageId messageId = message.getId();
-                    
-                    // Check if this specific message (MessageId = topic + timestamp) has been removed (Blind Coin)
+
                     if (node.isMessageRemoved(messageId)) {
-                        continue; // Skip this message, don't spread it
+                        continue;
                     }
-                    
-                    // Create new SpreadMsg with updated originId (this node is now the origin)
+
                     SpreadMsg forwardMsg = new SpreadMsg(
                         epidemic_core.message.common.Direction.node_to_node.toString(),
                         epidemic_core.message.node_to_node.NodeToNodeMessageType.spread.toString(),
                         messageId.topic().subject(),
                         messageId.topic().sourceId(),
                         messageId.timestamp(),
-                        node.getId(), // Update originId to this node (who is forwarding)
+                        node.getId(),
                         message.getData()
                     );
                     
                     try {
                         String stringMsg = forwardMsg.encode();
                         node.getCommunication().sendMessage(randNeighAdd, stringMsg);
-                    
-                        // After pushing, toss coin with probability 1/k
-                        // If successful (coin == true), remove this specific message
+
                         if (GossipNode.tossCoin(k)) {
                             node.removeMessage(messageId);
                             if (node.isRunning()) {
@@ -155,10 +141,8 @@ public class BlindCoinPushWorker implements WorkerInterface {
                     if (decodedMsg instanceof SpreadMsg) {
                         SpreadMsg spreadMsg = (SpreadMsg) decodedMsg;
                         if(node.subscriptionCheck(spreadMsg.getId().topic())) {
-                            // Check if this message was previously removed (Blind Coin)
                             MessageId msgId = spreadMsg.getId();
                             if (node.isMessageRemoved(msgId)) {
-                                // Ignore this message - it was previously removed
                                 if (node.isRunning()) {
                                     System.out.println("[Node " + node.getId() + "] Ignored removed message - subject '" + 
                                             msgId.topic().subject() + "' from source " + msgId.topic().sourceId() + 

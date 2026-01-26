@@ -62,8 +62,6 @@ public class AntiEntropyPushPullWorker implements WorkerInterface {
         checkForStartSignal();
         pushPullFsmHandle();
         replyUpdateFsmHandle();
-        // Print node state removed - too verbose
-        // node.printNodeState();
     }
 
     public void workingLoop() {
@@ -127,7 +125,6 @@ public class AntiEntropyPushPullWorker implements WorkerInterface {
                         e.printStackTrace();
                     }
                 } else {
-                    // We have a message for this topic, send RequestAndSpreadMsg with its MessageId
                     SpreadMsg storedMsg = statusForMsg.getMessage();
                     MessageId msgId = storedMsg.getId();
                     RequestAndSpreadMsg requestAndSpreadMsg = new RequestAndSpreadMsg(
@@ -205,22 +202,18 @@ public class AntiEntropyPushPullWorker implements WorkerInterface {
     public void sendPushPullReply(String reqMsgStr) {
         try {
             Object decodedMsg = MessageDispatcher.decode(reqMsgStr);
-            
-            // Can receive RequestMsg, RequestAndSpreadMsg, or InitialRequestMsg
+
             MessageId reqMsgId = null;
             Integer neighId = null;
             
             if (decodedMsg instanceof InitialRequestMsg) {
-                // InitialRequestMsg: send ALL stored messages (no specific MessageId)
                 InitialRequestMsg initialRequestMsg = (InitialRequestMsg) decodedMsg;
                 neighId = initialRequestMsg.getOriginId();
                 
                 Address neighAddress = node.getNeighbourAddress(neighId);
                 if (neighAddress != null) {
-                    // For InitialRequestMsg, send ALL stored messages
                     List<SpreadMsg> storedMessages = node.getAllStoredMessages();
                     for (SpreadMsg message : storedMessages) {
-                        // Create new SpreadMsg with updated originId (this node is now the origin)
                         MessageId msgId = message.getId();
                         SpreadMsg forwardMsg = new SpreadMsg(
                             epidemic_core.message.common.Direction.node_to_node.toString(),
@@ -228,7 +221,7 @@ public class AntiEntropyPushPullWorker implements WorkerInterface {
                             msgId.topic().subject(),
                             msgId.topic().sourceId(),
                             msgId.timestamp(),
-                            node.getId(), // Update originId to this node (who is replying)
+                            node.getId(),
                             message.getData()
                         );
                         
@@ -243,7 +236,7 @@ public class AntiEntropyPushPullWorker implements WorkerInterface {
                 } else {
                     System.err.println("Warning: Neighbour " + neighId + " address not found");
                 }
-                return; // Early return for InitialRequestMsg
+                return;
             } else if (decodedMsg instanceof RequestMsg) {
                 RequestMsg requestMsg = (RequestMsg) decodedMsg;
                 reqMsgId = requestMsg.getId();
@@ -252,7 +245,6 @@ public class AntiEntropyPushPullWorker implements WorkerInterface {
                 RequestAndSpreadMsg requestAndSpreadMsg = (RequestAndSpreadMsg) decodedMsg;
                 reqMsgId = requestAndSpreadMsg.getId();
                 neighId = requestAndSpreadMsg.getOriginId();
-                // Note: The SPREAD part is already processed by the Dispatcher and FSM
             }
             
             if (neighId != null && reqMsgId != null) {
@@ -263,16 +255,12 @@ public class AntiEntropyPushPullWorker implements WorkerInterface {
                     int reqSourceId = reqMsgId.topic().sourceId();
                     long reqTimestamp = reqMsgId.timestamp();
 
-                    // Check if we have this message (subject + sourceId)
                     if (node.hasMessage(reqSubject, reqSourceId)) {
-                        // Get the stored message
                         StatusForMessage statusForMsg = node.getMessagebySubjectAndSource(reqSubject, reqSourceId);
                         SpreadMsg storedMessage = statusForMsg.getMessage();
                         long storedTimestamp = storedMessage.getId().timestamp();
 
-                        // Reply only if we have a more recent version
                         if (storedTimestamp > reqTimestamp) {
-                            // Create new SpreadMsg with updated originId (this node is now the origin)
                             MessageId storedMsgId = storedMessage.getId();
                             SpreadMsg forwardMsg = new SpreadMsg(
                                 epidemic_core.message.common.Direction.node_to_node.toString(),
@@ -280,7 +268,7 @@ public class AntiEntropyPushPullWorker implements WorkerInterface {
                                 storedMsgId.topic().subject(),
                                 storedMsgId.topic().sourceId(),
                                 storedMsgId.timestamp(),
-                                node.getId(), // Update originId to this node (who is replying)
+                                node.getId(),
                                 storedMessage.getData()
                             );
                             
@@ -315,7 +303,6 @@ public class AntiEntropyPushPullWorker implements WorkerInterface {
             String newMsg;
             while((newMsg = requestMsgs.poll()) != null) { newReqMsgs.add(newMsg); }
 
-            // Replying every request received
             for(String newReqMsgStr: newReqMsgs) {
                 sendPushPullReply(newReqMsgStr);
             }

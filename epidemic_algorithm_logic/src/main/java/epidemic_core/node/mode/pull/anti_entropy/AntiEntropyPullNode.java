@@ -28,7 +28,7 @@ public class AntiEntropyPullNode extends AntiEntropyNode {
     protected BlockingQueue<String> requestMsgs;
     protected BlockingQueue<String> startRoundMsgs;
 
-    // Constructor (uses default UdpCommunication)
+    // Constructor
     public AntiEntropyPullNode(Integer id,
                     List<Integer> neighbours,
                     String assignedSubjectAsSource,
@@ -38,7 +38,6 @@ public class AntiEntropyPullNode extends AntiEntropyNode {
         this(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress, null);
     }
 
-    // Constructor with optional Communication (used by DistributedNodeStub)
     public AntiEntropyPullNode(Integer id,
                     List<Integer> neighbours,
                     String assignedSubjectAsSource,
@@ -62,7 +61,7 @@ public class AntiEntropyPullNode extends AntiEntropyNode {
     // ===========================================================
     //                        RUNNER
     // ===========================================================
-    // Deprecated: Use StartRoundMsg instead
+
     @Deprecated
     public void triggerPullRound() {
         if (worker instanceof AntiEntropyPullWorker) {
@@ -77,7 +76,7 @@ public class AntiEntropyPullNode extends AntiEntropyNode {
     }
     
     public void stopRunning() {
-        stop(); // Set isRunning flag to false
+        stop();
         listener.stopListening();
         dispatcher.stopDispatching();
     }

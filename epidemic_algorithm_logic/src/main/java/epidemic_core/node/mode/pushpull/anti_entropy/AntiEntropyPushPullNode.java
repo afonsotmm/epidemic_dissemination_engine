@@ -17,18 +17,15 @@ public class AntiEntropyPushPullNode extends AntiEntropyNode {
 
     public static final double RUNNING_INTERVAL = 50; // milliseconds
 
-    // PushPull Node Components
     protected Listener listener;
     protected Dispatcher dispatcher;
     protected WorkerInterface worker;
 
-    // Msg buffers
     protected BlockingQueue<String> receivedMsgsQueue;
     protected BlockingQueue<String> replyMsgs;
     protected BlockingQueue<String> requestMsgs;
     protected BlockingQueue<String> startRoundMsgs;
 
-    // Constructor (uses default UdpCommunication)
     public AntiEntropyPushPullNode(Integer id,
                     List<Integer> neighbours,
                     String assignedSubjectAsSource,
@@ -38,7 +35,6 @@ public class AntiEntropyPushPullNode extends AntiEntropyNode {
         this(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress, null);
     }
 
-    // Constructor with optional Communication (used by DistributedNodeStub)
     public AntiEntropyPushPullNode(Integer id,
                     List<Integer> neighbours,
                     String assignedSubjectAsSource,
@@ -62,7 +58,7 @@ public class AntiEntropyPushPullNode extends AntiEntropyNode {
     // ===========================================================
     //                        RUNNER
     // ===========================================================
-    // Deprecated: Use StartRoundMsg instead
+
     @Deprecated
     public void triggerPushPullRound() {
         if (worker instanceof AntiEntropyPushPullWorker) {

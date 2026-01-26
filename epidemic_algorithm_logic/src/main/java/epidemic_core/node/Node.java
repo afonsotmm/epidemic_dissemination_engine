@@ -11,6 +11,7 @@ import epidemic_core.node.msg_related.NodeRole;
 import epidemic_core.node.msg_related.NodeStatus;
 import epidemic_core.node.msg_related.StatusForMessage;
 import general.communication.Communication;
+import general.communication.implementation.NodeToNodeCountingCommunication;
 import general.communication.implementation.UdpCommunication;
 import general.communication.utils.Address;
 
@@ -20,10 +21,6 @@ import java.util.Map;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
-
-
-// Abstract base class for all Node types.
-// Contains common functionality for message storage, subscription management, and so on .
 
 public abstract class Node {
 
@@ -40,11 +37,10 @@ public abstract class Node {
 
     // Stored by MessageId and includes the Status & Role of the node relative to that msg
     protected Map<MessageId, StatusForMessage> storedMessages;
-    
-    // Flag to control if node is still running (to stop logs after convergence)
+
     protected volatile boolean isRunning;
 
-    // Constructor (uses default UdpCommunication)
+    // Constructor
     public Node(Integer id,
                 List<Integer> neighbours,
                 String assignedSubjectAsSource,
@@ -70,14 +66,13 @@ public abstract class Node {
         this.supervisorAddress = supervisorAddress;
         this.subscribedTopics = subscribedTopics != null ? new ArrayList<>(subscribedTopics) : new ArrayList<>();
         this.storedMessages = new ConcurrentHashMap<>();
-        this.isRunning = true; // Node starts as running
+        this.isRunning = true;
 
-        // Use existing Communication if provided (from DistributedNodeStub), otherwise create new UDP
-        if (existingCommunication != null) {
-            this.communication = existingCommunication;
-        } else {
-            this.communication = new UdpCommunication();
-            // Initialize the socket to listen for incoming messages
+        Communication raw = existingCommunication != null
+                ? existingCommunication
+                : new UdpCommunication();
+        this.communication = new NodeToNodeCountingCommunication(raw);
+        if (existingCommunication == null) {
             Address myAddress = nodeIdToAddressTable.get(id);
             if (myAddress != null) {
                 this.communication.setupSocket(myAddress);
@@ -91,13 +86,10 @@ public abstract class Node {
         }
     }
 
-    // General Methods
-    // Check if node has a message with the given subject and sourceId
     public Boolean hasMessage(String subject, int sourceId) {
         return getMessagebySubjectAndSource(subject, sourceId) != null;
     }
-    
-    // checks if has any message with the subject (from any source)
+
     public Boolean hasMessage(String subject) {
         for (MessageId msgId : storedMessages.keySet()) {
             if (msgId.topic().subject().equals(subject)) {
@@ -107,7 +99,6 @@ public abstract class Node {
         return false;
     }
 
-    // Get the most recent message by MessageTopic (subject + sourceId)
     public StatusForMessage getMessagebyTopic(MessageTopic topic) {
         StatusForMessage mostRecent = null;
         long maxTimestamp = -1;
@@ -124,8 +115,7 @@ public abstract class Node {
         
         return mostRecent;
     }
-    
-    // Get the most recent message by subject and sourceId
+
     public StatusForMessage getMessagebySubjectAndSource(String subject, int sourceId) {
         StatusForMessage mostRecent = null;
         long maxTimestamp = -1;
@@ -140,8 +130,7 @@ public abstract class Node {
         
         return mostRecent;
     }
-    
-    // get most recent message by subject (from any source)
+
     public StatusForMessage getMessagebySubject(String subject) {
         StatusForMessage mostRecent = null;
         long maxTimestamp = -1;
@@ -156,7 +145,7 @@ public abstract class Node {
         
         return mostRecent;
     }
-    
+
     // Get message by exact MessageId
     public StatusForMessage getMessageById(MessageId messageId) {
         return storedMessages.get(messageId);
@@ -203,20 +192,15 @@ public abstract class Node {
             e.printStackTrace();
         }
     }
-    
-    // Overloaded method for backward compatibility (when node is SOURCE, it infects itself)
+
     public void notifyStatusSupervisor(NodeStatus statusToNotify, SpreadMsg message) {
-        // If node is SOURCE, it infects itself (infecting_node_id = this node id)
         notifyStatusSupervisor(statusToNotify, message, id);
     }
 
-    // Stores the message (overload for when infecting node is the originId of the message)
     public void storeMessage(SpreadMsg message, NodeRole role) {
-        // Use originId as infecting node (the node that sent this message)
         storeMessage(message, role, message.getOriginId());
     }
-    
-    // Stores the message with infecting node ID
+
     public void storeMessage(SpreadMsg message, NodeRole role, int infectingNodeId) {
 
         MessageId msgId = message.getId();
@@ -225,29 +209,24 @@ public abstract class Node {
         int sourceId = msgId.topic().sourceId();
 
         StatusForMessage newMessage = new StatusForMessage(message, role);
-        
-        // Remove any existing message with the same subject AND sourceId (keep only most recent from same source)
+
         storedMessages.entrySet().removeIf(entry -> {
             MessageId key = entry.getKey();
             return key.topic().subject().equals(receivedSubject) && key.topic().sourceId() == sourceId;
         });
-        
-        // Store the new message by MessageId
+
         storedMessages.put(msgId, newMessage);
 
         if (isRunning) {
             if(role == NodeRole.FORWARDER) {
-            // Log: Node stored/updated message
             System.out.println("[Node " + id + "] Stored/Updated subject '" + receivedSubject +
                     "' with value: " + message.getData() + " (timestamp: " + receivedTimeStamp + ", sourceId: " + sourceId + ")");
             } else if(role == NodeRole.SOURCE) {
-                // Log: Node generated message as SOURCE
                 System.out.println("[Node " + id + "] Generated as SOURCE - subject '" + assignedSubjectAsSource +
                         "' with value: " +  message.getData());
             }
         }
 
-        // If SOURCE, infecting node is itself; otherwise use the provided infectingNodeId
         int actualInfectingNodeId;
         if(role == NodeRole.SOURCE) {
             actualInfectingNodeId = id;
@@ -259,8 +238,6 @@ public abstract class Node {
 
     }
 
-    // Stores the message only if it is new or more recent than the stored one
-    // Assumes FORWARDER role by default (when receiving from another node)
     public boolean storeOrIgnoreMessage(SpreadMsg receivedMessage) {
         return storeOrIgnoreMessage(receivedMessage, NodeRole.FORWARDER);
     }
@@ -270,33 +247,26 @@ public abstract class Node {
         MessageId msgId = receivedMessage.getId();
         String subject = msgId.topic().subject();
         int sourceId = msgId.topic().sourceId();
-        
-        // Find existing message with the same subject AND sourceId (only compare timestamps from same source)
+
         StatusForMessage alrStoredMsg = getMessagebySubjectAndSource(subject, sourceId);
 
         if (alrStoredMsg == null || msgId.timestamp() > alrStoredMsg.getMessage().getId().timestamp()) {
             NodeRole roleToUse = role;
-            
-            // If role is SOURCE, always use SOURCE
-            // If role is FORWARDER but node was already SOURCE, maintain SOURCE
+
             if (role == NodeRole.FORWARDER && alrStoredMsg != null && alrStoredMsg.getNodeRole() == NodeRole.SOURCE) {
                 roleToUse = NodeRole.SOURCE;
             }
-            // Otherwise, use the provided role (SOURCE or FORWARDER)
-            // Pass originId as infecting node (the node that sent this message)
+
             int infectingNodeId = receivedMessage.getOriginId();
             storeMessage(receivedMessage, roleToUse, infectingNodeId);
-            // Store
+
             return true;
         }
-        // Ignore
+
         return false;
     }
 
-    // Actuating as a SOURCE of a given msg:
-    // Generates and stores a msg
     private void generateAndStoreMessage() {
-        // Generate
         String data = randomDataGenerator(assignedSubjectAsSource);
         MessageTopic topic = new MessageTopic(assignedSubjectAsSource, id);
         MessageId messageId = new MessageId(topic, 0);
@@ -310,18 +280,15 @@ public abstract class Node {
             data
         );
 
-        //Store
         storeOrIgnoreMessage(message, NodeRole.SOURCE);
     }
 
-    // Generates random data
     private String randomDataGenerator(String subject) {
         Random rand  = new Random();
         int num = rand.nextInt(100);
         return Integer.toString(num);
     }
 
-    // Get all the stored messages
     public List<SpreadMsg> getAllStoredMessages() {
         List<SpreadMsg> messages = new ArrayList<>();
 
@@ -332,8 +299,7 @@ public abstract class Node {
 
         return messages;
     }
-    
-    // Get all stored messages with their status (for GUI)
+
     public Map<MessageId, StatusForMessage> getAllStoredMessagesWithStatus() {
         return new ConcurrentHashMap<>(storedMessages);
     }
@@ -376,13 +342,11 @@ public abstract class Node {
             }
         }
     }
-    
-    // Stop the node (set flag to false)
+
     public void stop() {
         this.isRunning = false;
     }
-    
-    // Check if node is still running
+
     public boolean isRunning() {
         return isRunning;
     }

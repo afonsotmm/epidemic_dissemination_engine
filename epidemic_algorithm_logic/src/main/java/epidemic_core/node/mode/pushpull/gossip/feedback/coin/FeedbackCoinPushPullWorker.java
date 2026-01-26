@@ -24,11 +24,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 
-// Worker for Feedback Coin PushPull protocol.
-// When receiving a request with MessageId that is already known, sends FeedbackMsg.
-// When receiving FeedbackMsg, tosses a coin with probability 1/k.
-// If successful, the node stops making requests and spreading that message.
-// If the message changes (new timestamp), it can propagate normally.
 public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushpull.general.components.WorkerInterface {
 
     private FeedbackCoinPushPullNode node;
@@ -47,7 +42,7 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
     private volatile boolean startSignal;
 
     private final Random rand = new Random();
-    private final double k; // Probability parameter: 1/k chance to stop spreading
+    private final double k;
 
     public FeedbackCoinPushPullWorker(FeedbackCoinPushPullNode node, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs, BlockingQueue<String> startRoundMsgs, double k) {
         this.node = node;
@@ -66,8 +61,6 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
         checkForStartSignal();
         pushPullFsmHandle();
         replyUpdateFsmHandle();
-        // Print node state removed - too verbose
-        // node.printNodeState();
     }
 
     public void workingLoop() {
@@ -96,10 +89,8 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
     //                  PUSHPULL FSM HANDLE                    //
     // ======================================================= //
     public void sendPushPullRequest() {
-        // Get subscribed topics (interests)
         List<MessageTopic> subscribedTopics = node.getSubscribedTopics();
 
-        // Get a random neighbour and its address
         List<Integer> neighbours = node.getNeighbours();
         if (neighbours.isEmpty()) {
             System.err.println("[Node " + node.getId() + "] No neighbours to pushpull from");
@@ -112,10 +103,8 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
 
         if (randNeighAdd != null) {
             for(MessageTopic topic: subscribedTopics){
-                // Check if we have a message for this specific topic (subject + sourceId)
                 StatusForMessage statusForMsg = node.getMessagebyTopic(topic);
-                
-                // if we have no message with a subscribed topic we send a "InitialRequestMsg"
+
                 if(statusForMsg == null){
                     InitialRequestMsg reqMsg = new InitialRequestMsg(
                         Direction.node_to_node.toString(),
@@ -130,11 +119,9 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
                         e.printStackTrace();
                     }
                 } else {
-                    // We have a message for this topic, send RequestAndSpreadMsg with its MessageId
                     SpreadMsg storedMsg = statusForMsg.getMessage();
                     MessageId msgId = storedMsg.getId();
-                    
-                    // Check if this specific message (MessageId = topic + timestamp) has been removed
+
                     if (node.isMessageRemoved(msgId)) {
                         continue;
                     }
@@ -156,7 +143,6 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
                         System.err.println("Error encoding RequestAndSpreadMsg: " + e.getMessage());
                         e.printStackTrace();
                     }
-                    // Note: No coin toss here - only when receiving FeedbackMsg
                 }
             }
         } else {
@@ -187,14 +173,33 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
                     if (decodedMsg instanceof SpreadMsg) {
                         SpreadMsg spreadMsg = (SpreadMsg) decodedMsg;
                         if(node.subscriptionCheck(spreadMsg.getId().topic())) {
-                            // Check if this message was previously removed
                             MessageId msgId = spreadMsg.getId();
+
                             if (node.isMessageRemoved(msgId)) {
-                                // Ignore this message - it was previously removed
-                                if (node.isRunning()) {
-                                    System.out.println("[Node " + node.getId() + "] Ignored removed message - subject '" + 
-                                            msgId.topic().subject() + "' from source " + msgId.topic().sourceId() + 
-                                            " (timestamp=" + msgId.timestamp() + ")");
+                                epidemic_core.node.msg_related.StatusForMessage storedStatus = 
+                                    node.getMessagebySubjectAndSource(msgId.topic().subject(), msgId.topic().sourceId());
+
+                                if (storedStatus != null) {
+                                    long storedTimestamp = storedStatus.getMessage().getId().timestamp();
+                                    if (storedTimestamp >= msgId.timestamp()) {
+                                        int originId = spreadMsg.getOriginId();
+                                        Address originAddress = node.getNeighbourAddress(originId);
+                                        if (originAddress != null) {
+                                            FeedbackMsg feedbackMsg = new FeedbackMsg(msgId);
+                                            try {
+                                                String feedbackString = feedbackMsg.encode();
+                                                node.getCommunication().sendMessage(originAddress, feedbackString);
+                                                if (node.isRunning()) {
+                                                    System.out.println("[Node " + node.getId() + "] Feedback Coin: Sent feedback for removed message '" + 
+                                                            msgId.topic().subject() + "' from source " + msgId.topic().sourceId() + 
+                                                            " (timestamp=" + msgId.timestamp() + ") to node " + originId);
+                                                }
+                                            } catch (java.io.IOException e) {
+                                                System.err.println("[Node " + node.getId() + "] Error encoding FeedbackMsg: " + e.getMessage());
+                                                e.printStackTrace();
+                                            }
+                                        }
+                                    }
                                 }
                                 continue;
                             }
@@ -205,14 +210,10 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
                             }
                         }
                     } else if (decodedMsg instanceof FeedbackMsg) {
-                        // Handle FeedbackMsg - this is where we do the coin toss
                         FeedbackMsg feedbackMsg = (FeedbackMsg) decodedMsg;
                         MessageId msgId = feedbackMsg.getId();
-                        
-                        // Check if we still have this message (might have been removed already)
+
                         if (!node.isMessageRemoved(msgId) && node.hasMessage(msgId.topic().subject(), msgId.topic().sourceId())) {
-                            // Toss coin with probability 1/k
-                            // If successful (coin == true), remove this specific message
                             if (GossipNode.tossCoin(k)) {
                                 node.removeMessage(msgId);
                                 if (node.isRunning()) {
@@ -243,33 +244,27 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
     public void sendPushPullReply(String reqMsgStr) {
         try {
             Object decodedMsg = MessageDispatcher.decode(reqMsgStr);
-            
-            // Can receive RequestMsg, RequestAndSpreadMsg, or InitialRequestMsg
+
             MessageId reqMsgId = null;
             Integer neighId = null;
             
             if (decodedMsg instanceof InitialRequestMsg) {
-                // InitialRequestMsg: send ALL stored messages (no specific MessageId)
                 InitialRequestMsg initialRequestMsg = (InitialRequestMsg) decodedMsg;
                 neighId = initialRequestMsg.getOriginId();
                 
                 Address neighAddress = node.getNeighbourAddress(neighId);
                 if (neighAddress != null) {
-                    // For InitialRequestMsg, send ALL stored messages
-                    // But only send messages that are NOT removed
                     List<SpreadMsg> storedMessages = node.getAllStoredMessages();
                     for (SpreadMsg message : storedMessages) {
                         MessageId msgId = message.getId();
-                        // Only send if message is not removed
                         if (!node.isMessageRemoved(msgId)) {
-                            // Create new SpreadMsg with updated originId (this node is now the origin)
                             SpreadMsg forwardMsg = new SpreadMsg(
                                 epidemic_core.message.common.Direction.node_to_node.toString(),
                                 epidemic_core.message.node_to_node.NodeToNodeMessageType.spread.toString(),
                                 msgId.topic().subject(),
                                 msgId.topic().sourceId(),
                                 msgId.timestamp(),
-                                node.getId(), // Update originId to this node (who is replying)
+                                node.getId(),
                                 message.getData()
                             );
                             
@@ -285,7 +280,7 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
                 } else {
                     System.err.println("Warning: Neighbour " + neighId + " address not found");
                 }
-                return; // Early return for InitialRequestMsg
+                return;
             } else if (decodedMsg instanceof RequestMsg) {
                 RequestMsg requestMsg = (RequestMsg) decodedMsg;
                 reqMsgId = requestMsg.getId();
@@ -294,7 +289,6 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
                 RequestAndSpreadMsg requestAndSpreadMsg = (RequestAndSpreadMsg) decodedMsg;
                 reqMsgId = requestAndSpreadMsg.getId();
                 neighId = requestAndSpreadMsg.getOriginId();
-                // Note: The SPREAD part is already processed by the Dispatcher and FSM
             }
             
             if (neighId != null && reqMsgId != null) {
@@ -305,40 +299,35 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
                     int reqSourceId = reqMsgId.topic().sourceId();
                     long reqTimestamp = reqMsgId.timestamp();
 
-                    // Check if we have this message (subject + sourceId)
                     if (node.hasMessage(reqSubject, reqSourceId)) {
-                        // Get the stored message
                         StatusForMessage statusForMsg = node.getMessagebySubjectAndSource(reqSubject, reqSourceId);
                         SpreadMsg storedMessage = statusForMsg.getMessage();
                         MessageId storedMsgId = storedMessage.getId();
                         long storedTimestamp = storedMsgId.timestamp();
 
-                        // Handle different version scenarios
-                        if (storedTimestamp == reqTimestamp && !node.isMessageRemoved(storedMsgId)) {
-                            // Same version: send FeedbackMsg to indicate we already have this message
+                        if (storedTimestamp == reqTimestamp) {
                             FeedbackMsg feedbackMsg = new FeedbackMsg(reqMsgId);
                             try {
                                 String feedbackString = feedbackMsg.encode();
                                 node.getCommunication().sendMessage(neighAddress, feedbackString);
                                 if (node.isRunning()) {
+                                    String removedNote = node.isMessageRemoved(storedMsgId) ? " (removed)" : "";
                                     System.out.println("[Node " + node.getId() + "] Feedback Coin: Sent feedback for message '" + 
                                             reqSubject + "' from source " + reqSourceId + 
-                                            " (timestamp=" + reqTimestamp + ") to node " + neighId);
+                                            " (timestamp=" + reqTimestamp + ")" + removedNote + " to node " + neighId);
                                 }
                             } catch (java.io.IOException e) {
                                 System.err.println("[Node " + node.getId() + "] Error encoding FeedbackMsg: " + e.getMessage());
                                 e.printStackTrace();
                             }
                         } else if (storedTimestamp > reqTimestamp && !node.isMessageRemoved(storedMsgId)) {
-                            // More recent version: send SpreadMsg to update the requestor
-                            // Create new SpreadMsg with updated originId (this node is now the origin)
                             SpreadMsg forwardMsg = new SpreadMsg(
                                 epidemic_core.message.common.Direction.node_to_node.toString(),
                                 epidemic_core.message.node_to_node.NodeToNodeMessageType.spread.toString(),
                                 storedMsgId.topic().subject(),
                                 storedMsgId.topic().sourceId(),
                                 storedMsgId.timestamp(),
-                                node.getId(), // Update originId to this node (who is replying)
+                                node.getId(),
                                 storedMessage.getData()
                             );
                             
@@ -350,7 +339,6 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
                                 e.printStackTrace();
                             }
                         }
-                        // If we have older version, don't send anything (requestor already has newer version)
                     }
                 } else {
                     System.err.println("Warning: Neighbour " + neighId + " address not found");
@@ -373,7 +361,6 @@ public class FeedbackCoinPushPullWorker implements epidemic_core.node.mode.pushp
             String newMsg;
             while((newMsg = requestMsgs.poll()) != null) { newReqMsgs.add(newMsg); }
 
-            // Replying every request received
             for(String newReqMsgStr: newReqMsgs) {
                 sendPushPullReply(newReqMsgStr);
             }

@@ -12,17 +12,13 @@ import general.communication.utils.Address;
 
 import java.io.IOException;
 
-/**
- * Message Node -> Supervisor: Node announces its presence (for distributed deployment)
- * Sent via UDP broadcast periodically when node is in "Waving" mode
- */
 @JsonPropertyOrder({"direction", "messageType", "tcpAddress", "udpAddress"})
-@JsonIgnoreProperties(ignoreUnknown = true) // Ignore unknown properties like "address" for backward compatibility
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class HelloMsg {
 
     private final HelloHeader header;
-    private final String tcpAddress; // TCP IP:port as string (for supervisor-to-node messages)
-    private final String udpAddress; // UDP IP:port as string (for node-to-node and StartRoundMsg)
+    private final String tcpAddress;
+    private final String udpAddress;
 
     @JsonCreator
     public HelloMsg(@JsonProperty("direction") String direction,
@@ -59,21 +55,16 @@ public class HelloMsg {
     
     @JsonProperty("udpAddress")
     public String getUdpAddress() { return udpAddress; }
-    
-    // Backward compatibility: return TCP address as "address" (for existing code)
-    // Note: This method is not serialized (no @JsonProperty) to avoid duplicate "address" field in JSON
+
     @Deprecated
-    @JsonIgnore // Don't serialize this - we only serialize tcpAddress and udpAddress
+    @JsonIgnore
     public String getAddress() { return tcpAddress; }
 
-    // Helper to parse TCP address string to Address object
-    @JsonIgnore // Don't serialize this - it's a helper method, not a JSON field
     public Address getTcpAddressAsAddress() {
         return tcpAddress != null ? Address.parse(tcpAddress) : null;
     }
-    
-    // Helper to parse UDP address string to Address object
-    @JsonIgnore // Don't serialize this - it's a helper method, not a JSON field
+
+    @JsonIgnore
     public Address getUdpAddressAsAddress() {
         return udpAddress != null ? Address.parse(udpAddress) : null;
     }

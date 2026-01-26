@@ -14,12 +14,10 @@ import java.util.Map;
 public class StartNetworkClient {
 
     public static void main(String[] args) {
-        // Configuration - adjust these values as needed
         String supervisorHost = "127.0.0.1";
         int supervisorPort = 7000;
-        
-        // UI address (where supervisor should send responses) - different IP from supervisor
-        String uiHost = "127.0.0.2";  // Different IP from supervisor
+
+        String uiHost = "127.0.0.2";
         int uiPort = 8000;
         
         // Network configuration
@@ -28,36 +26,16 @@ public class StartNetworkClient {
         String topology = "full mesh";       // Topology type: "full mesh", "ring", "star", etc.
         String protocol = "anti_entropy";    // Protocol type: "anti_entropy", "blind_coin", "feedback_coin"
         String mode = "push";                // Node mode: "push", "pull", "pushpull"
-        
-        // Parse command line arguments if provided
-        // Usage: [supervisorHost] [supervisorPort] [uiHost] [uiPort] [numNodes] [numSources] [topology] [protocol] [mode]
-        if (args.length >= 1) {
-            supervisorHost = args[0];
-        }
-        if (args.length >= 2) {
-            supervisorPort = Integer.parseInt(args[1]);
-        }
-        if (args.length >= 3) {
-            uiHost = args[2];
-        }
-        if (args.length >= 4) {
-            uiPort = Integer.parseInt(args[3]);
-        }
-        if (args.length >= 5) {
-            numberOfNodes = Integer.parseInt(args[4]);
-        }
-        if (args.length >= 6) {
-            numberOfSourceNodes = Integer.parseInt(args[5]);
-        }
-        if (args.length >= 7) {
-            topology = args[6];
-        }
-        if (args.length >= 8) {
-            protocol = args[7];
-        }
-        if (args.length >= 9) {
-            mode = args[8];
-        }
+
+        if (args.length >= 1) {supervisorHost = args[0];}
+        if (args.length >= 2) {supervisorPort = Integer.parseInt(args[1]);}
+        if (args.length >= 3) {uiHost = args[2]; }
+        if (args.length >= 4) {uiPort = Integer.parseInt(args[3]);}
+        if (args.length >= 5) {numberOfNodes = Integer.parseInt(args[4]); }
+        if (args.length >= 6) {numberOfSourceNodes = Integer.parseInt(args[5]);}
+        if (args.length >= 7) {topology = args[6];}
+        if (args.length >= 8) {protocol = args[7];}
+        if (args.length >= 9) {mode = args[8]; }
         
         try {
             // Create StartMsg JSON
@@ -85,10 +63,7 @@ public class StartNetworkClient {
             System.out.println("  Mode: " + mode);
             System.out.println("  JSON Message: " + jsonMessage);
             System.out.println("================================================");
-            
-            // Send message via TCP
-            // TcpCommunication.sendMessage() creates a new connection for each message
-            // No need to setup a server socket for a simple client
+
             TcpCommunication communication = new TcpCommunication();
             Address supervisorAddress = new Address(supervisorHost, supervisorPort);
             communication.sendMessage(supervisorAddress, jsonMessage);

@@ -1,6 +1,7 @@
 package supervisor.ui;
 
 import epidemic_core.message.common.MessageId;
+import epidemic_core.message.common.NodeToNodeMessageCounter;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartFrame;
 import org.jfree.chart.JFreeChart;
@@ -25,35 +26,31 @@ import java.util.stream.Collectors;
  * Similar to the old simulation supervisor's UI.
  */
 public class SupervisorGui {
-    
-    // Infection tracking
     private final Map<Integer, List<InfectionRecord>> infectionHistory;
     private final Map<Integer, Set<MessageId>> remotionHistory;
     private final Map<Integer, String> sourceNodes; // nodeId -> subject
-    
-    // Round tracking
+
     private int currentRound = 0;
     private final Map<Integer, Set<Integer>> infectionsPerRound;
     private final Set<Integer> uniqueInfectedNodes;
-    
-    // Chart components
+
     private ChartFrame chartFrame;
     private volatile boolean chartAutoUpdate = false;
     private java.util.Timer chartUpdateTimer;
-    
-    // Node GUI components
+
     private JFrame nodeGuiFrame;
     private JPanel nodesPanel;
     private JTextArea messagesArea;
     private JLabel selectedNodeLabel;
     private javax.swing.Timer refreshTimer;
-    
-    // Discovered nodes table
+
     private JTable discoveredNodesTable;
     private DefaultTableModel discoveredNodesTableModel;
     private JLabel discoveredNodesStatusLabel;
-    
-    // Discovered nodes tracking
+
+    private JLabel nodeToNodeCountLabel;
+    private javax.swing.Timer messageCountTimer;
+
     private static class DiscoveredNodeInfo {
         final int nodeId;
         final String tcpAddress;
@@ -70,8 +67,7 @@ public class SupervisorGui {
     
     private final Map<Integer, DiscoveredNodeInfo> discoveredNodes; // nodeId -> node info
     private LocalDateTime searchingStartTime;
-    
-    // Network info
+
     private final int numberOfNodes;
     
     /**
@@ -121,40 +117,42 @@ public class SupervisorGui {
         this.uniqueInfectedNodes = ConcurrentHashMap.newKeySet();
         this.discoveredNodes = new ConcurrentHashMap<>();
         this.searchingStartTime = null;
-        
-        // Initialize infection history for all nodes
+
         for (int i = 0; i < numberOfNodes; i++) {
             infectionHistory.put(i, Collections.synchronizedList(new ArrayList<>()));
             remotionHistory.put(i, ConcurrentHashMap.newKeySet());
         }
-        
-        // Initialize round 0
+
         infectionsPerRound.put(0, ConcurrentHashMap.newKeySet());
-        
-        // Initialize GUI
+
         SwingUtilities.invokeLater(this::initializeGui);
     }
     
     private void initializeGui() {
-        // Create main frame with tabs
         JFrame mainFrame = new JFrame("Epidemic Dissemination Supervisor");
         mainFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         mainFrame.setLayout(new BorderLayout());
-        
+
+        JPanel statsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        statsPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createEtchedBorder(),
+                BorderFactory.createEmptyBorder(4, 8, 4, 8)));
+        nodeToNodeCountLabel = new JLabel("Total node-to-node messages: 0");
+        nodeToNodeCountLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+        statsPanel.add(nodeToNodeCountLabel);
+        mainFrame.add(statsPanel, BorderLayout.NORTH);
+
         JTabbedPane tabbedPane = new JTabbedPane();
-        
-        // Chart tab
+
         JPanel chartPanel = new JPanel(new BorderLayout());
         JButton showChartButton = new JButton("Show Infection Chart");
         showChartButton.addActionListener(e -> generateInfectionChart());
         chartPanel.add(showChartButton, BorderLayout.NORTH);
         tabbedPane.addTab("Charts", chartPanel);
-        
-        // Discovered Nodes tab
+
         JPanel discoveredNodesPanel = initializeDiscoveredNodesPanel();
         tabbedPane.addTab("Discovered Nodes", discoveredNodesPanel);
-        
-        // Nodes tab
+
         initializeNodeGui();
         tabbedPane.addTab("Nodes", nodeGuiFrame.getContentPane());
         
@@ -162,6 +160,16 @@ public class SupervisorGui {
         mainFrame.pack();
         mainFrame.setLocationRelativeTo(null);
         mainFrame.setVisible(true);
+
+        messageCountTimer = new javax.swing.Timer(1000, e -> updateNodeToNodeCountLabel());
+        messageCountTimer.start();
+    }
+
+    private void updateNodeToNodeCountLabel() {
+        long total = NodeToNodeMessageCounter.getInstance().get();
+        if (nodeToNodeCountLabel != null) {
+            nodeToNodeCountLabel.setText("Total node-to-node messages: " + total);
+        }
     }
     
     private void initializeNodeGui() {
@@ -169,16 +177,14 @@ public class SupervisorGui {
         nodeGuiFrame.setTitle("Node Monitor");
         nodeGuiFrame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         nodeGuiFrame.setLayout(new BorderLayout());
-        
-        // Top panel with title
+
         JPanel topPanel = new JPanel();
         topPanel.setBorder(new TitledBorder("Node Selection"));
         topPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
         selectedNodeLabel = new JLabel("Click on a node to view its messages");
         topPanel.add(selectedNodeLabel);
         nodeGuiFrame.add(topPanel, BorderLayout.NORTH);
-        
-        // Center panel with nodes grid
+
         nodesPanel = new JPanel();
         nodesPanel.setLayout(new GridLayout(0, 10, 5, 5)); // 10 columns, auto rows
         nodesPanel.setBorder(new TitledBorder("Nodes"));
@@ -186,8 +192,7 @@ public class SupervisorGui {
         JScrollPane nodesScrollPane = new JScrollPane(nodesPanel);
         nodesScrollPane.setPreferredSize(new Dimension(800, 200));
         nodeGuiFrame.add(nodesScrollPane, BorderLayout.CENTER);
-        
-        // Bottom panel with messages
+
         JPanel messagesPanel = new JPanel();
         messagesPanel.setLayout(new BorderLayout());
         messagesPanel.setBorder(new TitledBorder("Stored Messages"));
@@ -198,18 +203,15 @@ public class SupervisorGui {
         JScrollPane messagesScrollPane = new JScrollPane(messagesArea);
         messagesScrollPane.setPreferredSize(new Dimension(800, 300));
         messagesPanel.add(messagesScrollPane, BorderLayout.CENTER);
-        
-        // Refresh button
+
         JButton refreshButton = new JButton("Refresh Now");
         refreshButton.addActionListener(e -> refreshNodes());
         messagesPanel.add(refreshButton, BorderLayout.SOUTH);
         
         nodeGuiFrame.add(messagesPanel, BorderLayout.SOUTH);
-        
-        // Initial refresh
+
         refreshNodes();
-        
-        // Auto-refresh every 2 seconds
+
         refreshTimer = new javax.swing.Timer(2000, e -> refreshNodes());
         refreshTimer.start();
         
@@ -217,55 +219,47 @@ public class SupervisorGui {
         nodeGuiFrame.setLocationRelativeTo(null);
     }
     
-    /**
-     * Initialize discovered nodes panel with table
-     */
+    // Initialize discovered nodes panel with table
     private JPanel initializeDiscoveredNodesPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(new TitledBorder("Nodes Discovered During SEARCHING Mode"));
-        
-        // Create table model with more columns
+
         String[] columnNames = {"Node ID", "TCP Address", "UDP Address", "Discovery Time"};
         discoveredNodesTableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
-                return false; // Make table read-only
+                return false;
             }
             
             @Override
             public Class<?> getColumnClass(int column) {
                 if (column == 0) return Integer.class; // Node ID
-                return String.class; // Addresses and Time
+                return String.class;
             }
         };
-        
-        // Create table
+
         discoveredNodesTable = new JTable(discoveredNodesTableModel);
         discoveredNodesTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         discoveredNodesTable.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
         discoveredNodesTable.getTableHeader().setReorderingAllowed(false);
         discoveredNodesTable.setRowHeight(20);
-        
-        // Set column widths
+
         discoveredNodesTable.getColumnModel().getColumn(0).setPreferredWidth(60);   // Node ID
         discoveredNodesTable.getColumnModel().getColumn(1).setPreferredWidth(180);  // TCP Address
         discoveredNodesTable.getColumnModel().getColumn(2).setPreferredWidth(180);  // UDP Address
         discoveredNodesTable.getColumnModel().getColumn(3).setPreferredWidth(160);  // Discovery Time
-        
-        // Add table to scroll pane
+
         JScrollPane scrollPane = new JScrollPane(discoveredNodesTable);
         scrollPane.setPreferredSize(new Dimension(650, 350));
         panel.add(scrollPane, BorderLayout.CENTER);
-        
-        // Status panel with more information
+
         JPanel statusPanel = new JPanel(new BorderLayout());
         statusPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
         
         discoveredNodesStatusLabel = new JLabel("No nodes discovered yet");
         discoveredNodesStatusLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
         statusPanel.add(discoveredNodesStatusLabel, BorderLayout.CENTER);
-        
-        // Auto-refresh status label every second to update elapsed time
+
         javax.swing.Timer statusTimer = new javax.swing.Timer(1000, e -> updateDiscoveredNodesStatus());
         statusTimer.start();
         
@@ -273,10 +267,7 @@ public class SupervisorGui {
         
         return panel;
     }
-    
-    /**
-     * Record a discovered node (called by Supervisor when HelloMsg is received)
-     */
+
     public void recordDiscoveredNode(int nodeId, String tcpAddress, String udpAddress) {
         if (searchingStartTime == null) {
             searchingStartTime = LocalDateTime.now();
@@ -284,26 +275,18 @@ public class SupervisorGui {
         discoveredNodes.put(nodeId, new DiscoveredNodeInfo(nodeId, tcpAddress, udpAddress));
         SwingUtilities.invokeLater(() -> updateDiscoveredNodesTable());
     }
-    
-    /**
-     * Overloaded method for backward compatibility (only TCP address)
-     */
+
     public void recordDiscoveredNode(int nodeId, String tcpAddress) {
         recordDiscoveredNode(nodeId, tcpAddress, "N/A");
     }
-    
-    /**
-     * Update the discovered nodes table with current data
-     */
+
     private void updateDiscoveredNodesTable() {
         if (discoveredNodesTableModel == null) {
-            return; // Table not initialized yet
+            return;
         }
-        
-        // Clear existing rows
+
         discoveredNodesTableModel.setRowCount(0);
-        
-        // Add discovered nodes sorted by node ID
+
         List<Integer> sortedNodeIds = new ArrayList<>(discoveredNodes.keySet());
         Collections.sort(sortedNodeIds);
         
@@ -324,10 +307,7 @@ public class SupervisorGui {
         
         updateDiscoveredNodesStatus();
     }
-    
-    /**
-     * Update the status label with progress and elapsed time
-     */
+
     private void updateDiscoveredNodesStatus() {
         if (discoveredNodesStatusLabel == null) {
             return;
@@ -352,8 +332,7 @@ public class SupervisorGui {
                 double percentage = (count * 100.0) / numberOfNodes;
                 status.append(" (").append(count).append("/").append(numberOfNodes).append(" - ");
                 status.append(String.format("%.1f", percentage)).append("%)");
-                
-                // Add progress indicator
+
                 int progressBars = (int) (percentage / 5); // 5% per bar
                 status.append(" [");
                 for (int i = 0; i < 20; i++) {
@@ -365,19 +344,17 @@ public class SupervisorGui {
             if (searchingStartTime != null) {
                 long elapsedSeconds = java.time.Duration.between(searchingStartTime, LocalDateTime.now()).getSeconds();
                 status.append(" | Elapsed: ").append(formatDuration(elapsedSeconds));
-                
-                // Show discovery rate if more than one node
+
                 if (count > 1 && elapsedSeconds > 0) {
                     double rate = count / (double) elapsedSeconds;
                     status.append(" | Rate: ").append(String.format("%.2f", rate)).append(" nodes/sec");
                 }
-                
-                // Show estimated time to complete (if searching is active)
+
                 if (numberOfNodes > count && count > 0) {
                     long avgTimePerNode = elapsedSeconds / count;
                     long remainingNodes = numberOfNodes - count;
                     long estimatedSeconds = avgTimePerNode * remainingNodes;
-                    if (estimatedSeconds > 0 && estimatedSeconds < 300) { // Only show if less than 5 minutes
+                    if (estimatedSeconds > 0 && estimatedSeconds < 300) {
                         status.append(" | ETA: ").append(formatDuration(estimatedSeconds));
                     }
                 }
@@ -387,10 +364,7 @@ public class SupervisorGui {
         status.append("</html>");
         discoveredNodesStatusLabel.setText(status.toString());
     }
-    
-    /**
-     * Format duration in seconds to human-readable format
-     */
+
     private String formatDuration(long seconds) {
         if (seconds < 60) {
             return seconds + "s";
@@ -405,17 +379,11 @@ public class SupervisorGui {
             return hours + "h " + mins + "m " + secs + "s";
         }
     }
-    
-    /**
-     * Record an infection update
-     */
+
     public void recordInfection(int nodeId, int infectingNodeId, String subject, int sourceId, int timestamp, String data) {
         recordInfection(nodeId, infectingNodeId, subject, sourceId, timestamp, data, currentRound);
     }
-    
-    /**
-     * Record an infection update with explicit round
-     */
+
     public void recordInfection(int nodeId, int infectingNodeId, String subject, int sourceId, int timestamp, String data, int round) {
         System.out.println("[SupervisorGui] recordInfection() called: nodeId=" + nodeId + 
                          ", infectingNodeId=" + infectingNodeId + 
@@ -423,20 +391,18 @@ public class SupervisorGui {
                          ", sourceId=" + sourceId + 
                          ", timestamp=" + timestamp + 
                          ", round=" + round);
-        
-        // Track source nodes - a node is a source if it generated the message (nodeId == sourceId)
+
         if (nodeId == sourceId) {
             sourceNodes.put(nodeId, subject);
             System.out.println("[SupervisorGui] Detected SOURCE node: " + nodeId + " with subject: " + subject);
         }
-        
-        // Add to infection history
+
         List<InfectionRecord> records = infectionHistory.get(nodeId);
         if (records == null) {
             System.err.println("[SupervisorGui] ERROR: No infection history for nodeId=" + nodeId + 
                              " (infectionHistory size=" + infectionHistory.size() + 
                              ", numberOfNodes=" + numberOfNodes + ")");
-            // Try to initialize it if it's a valid node ID
+
             if (nodeId >= 0 && nodeId < numberOfNodes) {
                 System.out.println("[SupervisorGui] Initializing infection history for nodeId=" + nodeId);
                 records = Collections.synchronizedList(new ArrayList<>());
@@ -451,9 +417,7 @@ public class SupervisorGui {
         records.add(record);
         System.out.println("[SupervisorGui] Added InfectionRecord to history for nodeId=" + nodeId + 
                          " (total records for this node: " + records.size() + ")");
-        
-        // Track infection per round ONLY if this is the first time this node gets infected
-        // (ignore updates to already infected nodes to show true growth curve)
+
         boolean isNewInfection = uniqueInfectedNodes.add(nodeId);
         if (isNewInfection) {
             infectionsPerRound.computeIfAbsent(round, k -> ConcurrentHashMap.newKeySet()).add(nodeId);
@@ -463,7 +427,6 @@ public class SupervisorGui {
                              ", round=" + round + 
                              " (infected by node " + infectingNodeId + ")");
         } else {
-            // This is an update to an already infected node - don't count as new infection
             System.out.println("[SupervisorGui] INFECTED (UPDATE): nodeId=" + nodeId + 
                              ", sourceId=" + sourceId + 
                              ", subject=" + subject + 
@@ -471,10 +434,7 @@ public class SupervisorGui {
                              " (infected by node " + infectingNodeId + ")");
         }
     }
-    
-    /**
-     * Record a remotion update
-     */
+
     public void recordRemotion(int nodeId, String subject, int sourceId, int timestamp) {
         MessageId msgId = new MessageId(
             new epidemic_core.message.common.MessageTopic(subject, sourceId),
@@ -482,30 +442,21 @@ public class SupervisorGui {
         );
         remotionHistory.computeIfAbsent(nodeId, k -> ConcurrentHashMap.newKeySet()).add(msgId);
     }
-    
-    /**
-     * Increment round counter
-     */
+
     public void incrementRound() {
         currentRound++;
         infectionsPerRound.put(currentRound, ConcurrentHashMap.newKeySet());
     }
-    
-    /**
-     * Generate and display infection chart
-     */
+
     public void generateInfectionChart() {
         SwingUtilities.invokeLater(() -> {
             DefaultCategoryDataset dataset = new DefaultCategoryDataset();
-            
-            // Group infections by round (cumulative)
+
             Map<Integer, Set<Integer>> uniqueInfectionsPerRound = new TreeMap<>();
             Set<Integer> cumulativeInfectedNodes = new HashSet<>();
-            
-            // Track first infection per node
+
             Map<Integer, Integer> firstInfectionRound = new HashMap<>();
-            
-            // First pass: find first infection round for each node
+
             for (Map.Entry<Integer, List<InfectionRecord>> entry : infectionHistory.entrySet()) {
                 int nodeId = entry.getKey();
                 for (InfectionRecord record : entry.getValue()) {
@@ -515,8 +466,7 @@ public class SupervisorGui {
                     }
                 }
             }
-            
-            // Process all rounds up to current round
+
             for (int round = 0; round <= currentRound; round++) {
                 Set<Integer> roundInfections = new HashSet<>();
                 
@@ -531,8 +481,7 @@ public class SupervisorGui {
                 cumulativeInfectedNodes.addAll(roundInfections);
                 uniqueInfectionsPerRound.put(round, new HashSet<>(cumulativeInfectedNodes));
             }
-            
-            // Add data to dataset
+
             int maxRound = uniqueInfectionsPerRound.isEmpty() ? 0 : Collections.max(uniqueInfectionsPerRound.keySet());
             for (int round = 0; round <= maxRound; round++) {
                 int cumulativeCount = uniqueInfectionsPerRound.getOrDefault(round, Collections.emptySet()).size();
@@ -543,8 +492,7 @@ public class SupervisorGui {
                 }
                 dataset.addValue(cumulativeCount, "Cumulative Infections", String.valueOf(round));
             }
-            
-            // Create chart
+
             JFreeChart chart = ChartFactory.createLineChart(
                     "Infections Over Rounds (All Subjects & Sources)",
                     "Round",
@@ -555,24 +503,25 @@ public class SupervisorGui {
                     true,
                     false
             );
-            
-            // Configure Y-axis to show only integers
+
             CategoryPlot plot = (CategoryPlot) chart.getPlot();
             NumberAxis rangeAxis = (NumberAxis) plot.getRangeAxis();
             rangeAxis.setStandardTickUnits(NumberAxis.createIntegerTickUnits());
-            
-            // Display chart
-            if (chartFrame == null || !chartFrame.isVisible()) {
+
+            if (chartFrame == null || !chartFrame.isDisplayable()) {
                 chartFrame = new ChartFrame("Infection Chart", chart);
+                chartFrame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
                 chartFrame.pack();
                 chartFrame.setVisible(true);
-                
-                // Start auto-update
+
                 if (!chartAutoUpdate) {
                     startChartAutoUpdate();
                 }
             } else {
                 chartFrame.getChartPanel().setChart(chart);
+                if (!chartFrame.isVisible()) {
+                    chartFrame.setVisible(true);
+                }
             }
         });
     }
@@ -612,8 +561,7 @@ public class SupervisorGui {
         boolean isSource = sourceNodes.containsKey(nodeId);
         boolean hasRemovedMessages = remotionHistory.containsKey(nodeId) && 
                                      !remotionHistory.get(nodeId).isEmpty();
-        
-        // Color coding
+
         if (hasRemovedMessages) {
             int removedCount = remotionHistory.get(nodeId).size();
             button.setBackground(new Color(255, 100, 100)); // Light red

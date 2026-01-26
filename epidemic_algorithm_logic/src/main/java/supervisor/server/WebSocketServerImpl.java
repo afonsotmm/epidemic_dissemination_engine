@@ -30,7 +30,6 @@ public class WebSocketServerImpl extends WebSocketServer {
     public void onMessage(WebSocket conn, String message) {
         System.out.println("[WS] Received message: " + message);
         if (uiQueue != null) {
-            // Forward message to the Supervisor's UI Queue
             uiQueue.offer(message);
         }
     }

@@ -69,7 +69,7 @@ public class PullFsm extends FiniteStateMachine<PullStates> {
             result.pullReq        = false;
             result.updateStatus   = false;
             result.checkReplyMsgs = false;
-            result.saveReplyMsgs  = true;
+            result.saveReplyMsgs  = true; // Move messages to newReplyMsgs (like updateFsm in push)
         }
 
         // reset transition variables

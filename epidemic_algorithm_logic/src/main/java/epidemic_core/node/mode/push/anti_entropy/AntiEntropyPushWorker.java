@@ -48,8 +48,6 @@ public class AntiEntropyPushWorker implements WorkerInterface {
         checkForStartSignal();
         pushFsmHandle();
         updateFsmHandle();
-        // Print node state removed - too verbose
-        // node.printNodeState();
     }
 
     public void workingLoop() {
@@ -69,7 +67,7 @@ public class AntiEntropyPushWorker implements WorkerInterface {
     // ======================================================= //
     //                  START SIGNAL HANDLE                    //
     // ======================================================= //
-    // return true if startRoundMsgs isn't empty
+
     public void checkForStartSignal() {
         if (startRoundMsgs.poll() != null) {
             startSignal = true;
@@ -87,17 +85,13 @@ public class AntiEntropyPushWorker implements WorkerInterface {
         List<SpreadMsg> storedMessages = node.getAllStoredMessages();
         List<Integer> neighbours = node.getNeighbours();
 
-        // Only send if there are neighbours and stored messages
         if (neighbours != null && !neighbours.isEmpty() && !storedMessages.isEmpty()) {
-            // Pick a random neighbour
             int randNeighIndex = rand.nextInt(neighbours.size());
             Integer randNeighId = neighbours.get(randNeighIndex);
             Address randNeighAdd = node.getNeighbourAddress(randNeighId);
 
-            // Send all stored messages to the random neighbour
             if (randNeighAdd != null) {
                 for (SpreadMsg message : storedMessages) {
-                    // Create new SpreadMsg with updated originId (this node is now the origin)
                     epidemic_core.message.common.MessageId msgId = message.getId();
                     SpreadMsg forwardMsg = new SpreadMsg(
                         epidemic_core.message.common.Direction.node_to_node.toString(),
@@ -105,7 +99,7 @@ public class AntiEntropyPushWorker implements WorkerInterface {
                         msgId.topic().subject(),
                         msgId.topic().sourceId(),
                         msgId.timestamp(),
-                        node.getId(), // Update originId to this node (who is forwarding)
+                        node.getId(),
                         message.getData()
                     );
                     

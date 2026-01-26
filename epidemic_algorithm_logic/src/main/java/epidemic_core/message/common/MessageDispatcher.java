@@ -62,7 +62,6 @@ public class MessageDispatcher {
         }
     }
 
-    // Helper methods to check message type
     public static String getDirection(String raw) {
         try {
             if (raw.trim().startsWith("{")) {

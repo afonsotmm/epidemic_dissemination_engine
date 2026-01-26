@@ -10,8 +10,7 @@ import epidemic_core.message.supervisor_to_node.SupervisorToNodeMessageType;
 import java.io.IOException;
 
 /**
- * Message Supervisor -> Node: Kill/stop the node (return to Waving mode in distributed deployment)
- * Sent via TCP when supervisor receives EndMsg from UI
+ * Message Supervisor -> Node: stop the node
  */
 @JsonPropertyOrder({"direction", "messageType"})
 public class KillNodeMsg {

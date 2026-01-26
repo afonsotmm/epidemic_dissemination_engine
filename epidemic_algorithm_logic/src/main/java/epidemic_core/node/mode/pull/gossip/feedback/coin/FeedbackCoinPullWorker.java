@@ -23,10 +23,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 
-// Worker for Feedback Coin Pull protocol.
-// When receiving a request with MessageId that is already known, sends FeedbackMsg.
-// When receiving FeedbackMsg, tosses a coin with probability 1/k.
-// If successful, the node stops making requests and spreading that message.
 public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.general.components.WorkerInterface {
 
     private FeedbackCoinPullNode node;
@@ -45,7 +41,7 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
     private volatile boolean startSignal;
 
     private final Random rand = new Random();
-    private final double k; // Probability parameter: 1/k chance to stop spreading
+    private final double k;
 
     public FeedbackCoinPullWorker(FeedbackCoinPullNode node, BlockingQueue<String> replyMsgs, BlockingQueue<String> requestMsgs, BlockingQueue<String> startRoundMsgs, double k) {
         this.node = node;
@@ -64,8 +60,6 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
         checkForStartSignal();
         pullFsmHandle();
         replyFsmHandle();
-        // Print node state removed - too verbose
-        // node.printNodeState();
     }
 
     public void workingLoop() {
@@ -84,20 +78,19 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
     public void setStartSignal(boolean startSignal) { this.startSignal = startSignal; }
 
     // ======================================================= //
-    //                  START SIGNAL HANDLE                     //
+    //                  START SIGNAL HANDLE                    //
     // ======================================================= //
     public void checkForStartSignal() {
         startSignal = (startRoundMsgs.poll() != null);
     }
 
     // ======================================================= //
-    //                  PULL FSM HANDLE                        //
+    //                  PULL FSM HANDLE                         //
     // ======================================================= //
+
     public void sendPullRequest() {
-        // Get subscribed topics (interests)
         List<MessageTopic> subscribedTopics = node.getSubscribedTopics();
 
-        // Get a random neighbour and its address
         List<Integer> neighbours = node.getNeighbours();
         if (neighbours.isEmpty()) {
             System.err.println("[Node " + node.getId() + "] No neighbours to pull from");
@@ -108,10 +101,8 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
         Address randNeighAdd = node.getNeighbourAddress(randNeighId);
 
         for(MessageTopic topic: subscribedTopics){
-            // Check if we have a message for this specific topic (subject + sourceId)
             StatusForMessage statusForMsg = node.getMessagebyTopic(topic);
-            
-            // if we have no message with a subscribed topic we send a "InitialRequestMsg"
+
             if(statusForMsg == null){
                 InitialRequestMsg reqMsg = new InitialRequestMsg(
                     Direction.node_to_node.toString(),
@@ -126,13 +117,10 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
                     e.printStackTrace();
                 }
             } else {
-                // We have a message for this topic, send RequestMsg with its MessageId
                 SpreadMsg storedMsg = statusForMsg.getMessage();
                 MessageId messageId = storedMsg.getId();
-                
-                // Check if this specific message (MessageId = topic + timestamp) has been removed
+
                 if (node.isMessageRemoved(messageId)) {
-                    // We don't make requests for this topic anymore (while we dont have a newer version)
                     continue;
                 }
                 
@@ -151,7 +139,6 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
                     System.err.println("Error encoding RequestMsg: " + e.getMessage());
                     e.printStackTrace();
                 }
-                // Note: No coin toss here - only when receiving FeedbackMsg
             }
         }
     }
@@ -179,10 +166,8 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
                     if (decodedMsg instanceof SpreadMsg) {
                         SpreadMsg spreadMsg = (SpreadMsg) decodedMsg;
                         if(node.subscriptionCheck(spreadMsg.getId().topic())) {
-                            // Check if this message was previously removed
                             MessageId msgId = spreadMsg.getId();
                             if (node.isMessageRemoved(msgId)) {
-                                // Ignore this message - it was previously removed
                                 if (node.isRunning()) {
                                     System.out.println("[Node " + node.getId() + "] Ignored removed message - subject '" + 
                                             msgId.topic().subject() + "' from source " + msgId.topic().sourceId() + 
@@ -197,14 +182,10 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
                             }
                         }
                     } else if (decodedMsg instanceof FeedbackMsg) {
-                        // Handle FeedbackMsg - this is where we do the coin toss
                         FeedbackMsg feedbackMsg = (FeedbackMsg) decodedMsg;
                         MessageId msgId = feedbackMsg.getId();
-                        
-                        // Check if we still have this message (might have been removed already)
+
                         if (!node.isMessageRemoved(msgId) && node.hasMessage(msgId.topic().subject(), msgId.topic().sourceId())) {
-                            // Toss coin with probability 1/k
-                            // If successful (coin == true), remove this specific message
                             if (GossipNode.tossCoin(k)) {
                                 node.removeMessage(msgId);
                                 if (node.isRunning()) {
@@ -246,33 +227,28 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
                 Address neighAddress = node.getNeighbourAddress(neighId);
 
                 if (neighAddress != null) {
-                    // Check if we have this message (subject + sourceId)
                     if (node.hasMessage(reqSubject, reqSourceId)) {
-                        // Get the stored message
                         StatusForMessage statusForMsg = node.getMessagebySubjectAndSource(reqSubject, reqSourceId);
                         SpreadMsg storedMessage = statusForMsg.getMessage();
-                        long storedTimestamp = storedMessage.getId().timestamp();
+                        MessageId storedMsgId = storedMessage.getId();
+                        long storedTimestamp = storedMsgId.timestamp();
 
-                        // If we have same or more recent version, send FeedbackMsg instead of SpreadMsg
                         if (storedTimestamp >= reqTimestamp) {
-                            // Send FeedbackMsg to indicate we already have this message
                             FeedbackMsg feedbackMsg = new FeedbackMsg(requestMsg.getId());
                             try {
                                 String feedbackString = feedbackMsg.encode();
                                 node.getCommunication().sendMessage(neighAddress, feedbackString);
                                 if (node.isRunning()) {
+                                    String removedNote = node.isMessageRemoved(storedMsgId) ? " (removed)" : "";
                                     System.out.println("[Node " + node.getId() + "] Feedback Coin: Sent feedback for message '" + 
                                             reqSubject + "' from source " + reqSourceId + 
-                                            " (timestamp=" + reqTimestamp + ") to node " + neighId);
+                                            " (timestamp=" + reqTimestamp + ")" + removedNote + " to node " + neighId);
                                 }
                             } catch (java.io.IOException e) {
                                 System.err.println("[Node " + node.getId() + "] Error encoding FeedbackMsg: " + e.getMessage());
                                 e.printStackTrace();
                             }
-                            // Note: We don't send SpreadMsg if we have same or more recent version
                         } else {
-                            // We have an older version - don't send anything (requestor already has newer version)
-                            // This matches the behavior of normal Pull protocol
                         }
                     }
                 } else {
@@ -284,21 +260,17 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
                 Address neighAddress = node.getNeighbourAddress(neighId);
 
                 if (neighAddress != null) {
-                    // For InitialRequestMsg, send ALL stored messages (generic pull request)
-                    // But only send messages that are NOT removed
                     List<SpreadMsg> storedMessages = node.getAllStoredMessages();
                     for (SpreadMsg message : storedMessages) {
                         MessageId msgId = message.getId();
-                        // Only send if message is not removed
                         if (!node.isMessageRemoved(msgId)) {
-                            // Create new SpreadMsg with updated originId (this node is now the origin)
                             SpreadMsg forwardMsg = new SpreadMsg(
                                 epidemic_core.message.common.Direction.node_to_node.toString(),
                                 epidemic_core.message.node_to_node.NodeToNodeMessageType.spread.toString(),
                                 msgId.topic().subject(),
                                 msgId.topic().sourceId(),
                                 msgId.timestamp(),
-                                node.getId(), // Update originId to this node (who is replying)
+                                node.getId(),
                                 message.getData()
                             );
                             
@@ -333,7 +305,6 @@ public class FeedbackCoinPullWorker implements epidemic_core.node.mode.pull.gene
             String newMsg;
             while((newMsg = requestMsgs.poll()) != null) { newReqMsgs.add(newMsg); }
 
-            // Replying every request received
             for(String newReqMsgStr: newReqMsgs) {
                 sendPullReply(newReqMsgStr);
             }

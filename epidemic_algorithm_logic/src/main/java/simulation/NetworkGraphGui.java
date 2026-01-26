@@ -23,10 +23,9 @@ public class NetworkGraphGui extends JFrame {
     private Map<Integer, Set<Integer>> edges;
     private Map<Integer, Boolean> infectedNodes;
     private Map<Integer, String> sourceNodes; // nodeId -> subject
-    
-    // Animation for edges (flashing when message passes)
-    private Map<EdgeKey, Long> flashingEdges; // Edge -> timestamp when animation started
-    private static final long ANIMATION_DURATION_MS = 500; // 500ms animation
+
+    private Map<EdgeKey, Long> flashingEdges;
+    private static final long ANIMATION_DURATION_MS = 500;
     
     private Runnable onStartCallback;
     private Runnable onEndCallback;
@@ -47,8 +46,7 @@ public class NetworkGraphGui extends JFrame {
         infectedNodes = new HashMap<>();
         sourceNodes = new HashMap<>();
         flashingEdges = new HashMap<>();
-        
-        // Start animation timer
+
         javax.swing.Timer animationTimer = new javax.swing.Timer(50, e -> {
             long currentTime = System.currentTimeMillis();
             flashingEdges.entrySet().removeIf(entry -> 
@@ -57,13 +55,11 @@ public class NetworkGraphGui extends JFrame {
             graphPanel.repaint();
         });
         animationTimer.start();
-        
-        // Create components
+
         graphPanel = new GraphPanel();
         statusLabel = new JLabel("Waiting for network topology...");
         statusLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        
-        // Create control buttons
+
         JButton startButton = new JButton("Start Network");
         startButton.setFont(new Font("Arial", Font.BOLD, 14));
         startButton.setBackground(new Color(76, 175, 80));
@@ -83,14 +79,12 @@ public class NetworkGraphGui extends JFrame {
                 onEndCallback.run();
             }
         });
-        
-        // Button panel
+
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
         buttonPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         buttonPanel.add(startButton);
         buttonPanel.add(endButton);
-        
-        // Layout
+
         setLayout(new BorderLayout());
         add(graphPanel, BorderLayout.CENTER);
         add(buttonPanel, BorderLayout.NORTH);
@@ -106,10 +100,7 @@ public class NetworkGraphGui extends JFrame {
     public void setEndCallback(Runnable callback) {
         this.onEndCallback = callback;
     }
-    
-    /**
-     * Update the topology from StructuralInfosMsg
-     */
+
     public void updateTopology(StructuralInfosMsg structuralMsg) {
         SwingUtilities.invokeLater(() -> {
             nodes.clear();
@@ -117,20 +108,16 @@ public class NetworkGraphGui extends JFrame {
             sourceNodes.clear();
             
             List<StructuralInfosMsg.NodeInfo> nodeInfos = structuralMsg.getNodes();
-            
-            // Build graph structure
+
             for (StructuralInfosMsg.NodeInfo nodeInfo : nodeInfos) {
                 int nodeId = nodeInfo.getId();
                 List<Integer> neighbors = nodeInfo.getNeighbors();
                 String subject = nodeInfo.getSubject();
-                
-                // Store node
+
                 nodes.put(nodeId, new NodePosition(0, 0)); // Position will be calculated
-                
-                // Store edges
+
                 edges.put(nodeId, new HashSet<>(neighbors));
-                
-                // Store source nodes
+
                 if (subject != null) {
                     sourceNodes.put(nodeId, subject);
                     infectedNodes.put(nodeId, true); // Source nodes start infected
@@ -138,18 +125,14 @@ public class NetworkGraphGui extends JFrame {
                     infectedNodes.put(nodeId, false);
                 }
             }
-            
-            // Calculate node positions using circular layout
+
             calculateCircularLayout();
             
             statusLabel.setText("Network: " + nodes.size() + " nodes, " + countEdges() + " edges");
             graphPanel.repaint();
         });
     }
-    
-    /**
-     * Update node infection status
-     */
+
     public void updateNodeInfection(int nodeId, boolean infected) {
         SwingUtilities.invokeLater(() -> {
             if (nodes.containsKey(nodeId)) {
@@ -158,20 +141,13 @@ public class NetworkGraphGui extends JFrame {
             }
         });
     }
-    
-    /**
-     * Flash an edge when a message passes between two nodes
-     * @param fromNodeId The node that sent the message (infecting_node_id)
-     * @param toNodeId The node that received the message (updated_node_id)
-     */
+
     public void flashEdge(int fromNodeId, int toNodeId) {
         SwingUtilities.invokeLater(() -> {
-            // Check if both nodes exist
             if (!nodes.containsKey(fromNodeId) || !nodes.containsKey(toNodeId)) {
                 return;
             }
-            
-            // Check if edge exists in the graph (check both directions since graph is undirected)
+
             boolean edgeExists = false;
             Set<Integer> neighborsFrom = edges.get(fromNodeId);
             if (neighborsFrom != null && neighborsFrom.contains(toNodeId)) {
@@ -184,13 +160,11 @@ public class NetworkGraphGui extends JFrame {
             }
             
             if (edgeExists) {
-                // Create edge key (normalized: smaller id first)
                 EdgeKey edge = new EdgeKey(
                     Math.min(fromNodeId, toNodeId),
                     Math.max(fromNodeId, toNodeId)
                 );
-                
-                // Start animation
+
                 flashingEdges.put(edge, System.currentTimeMillis());
                 System.out.println("Flashing edge: " + fromNodeId + " -> " + toNodeId);
                 graphPanel.repaint();
@@ -199,17 +173,13 @@ public class NetworkGraphGui extends JFrame {
             }
         });
     }
-    
-    /**
-     * Calculate circular layout for nodes
-     */
+
     private void calculateCircularLayout() {
         if (nodes.isEmpty()) return;
         
         int nodeCount = nodes.size();
         int centerX = 600;
         int centerY = 350;
-        // Increase radius significantly for better spacing
         int radius = Math.max(300, nodeCount * 30);
         
         List<Integer> nodeIds = new ArrayList<>(nodes.keySet());
@@ -231,17 +201,13 @@ public class NetworkGraphGui extends JFrame {
         }
         return count / 2; // Each edge counted twice
     }
-    
-    /**
-     * Panel for drawing the graph
-     */
+
     private class GraphPanel extends JPanel {
         
         public GraphPanel() {
             setBackground(Color.WHITE);
             setPreferredSize(new Dimension(1400, 800));
-            
-            // Add mouse listener for node selection
+
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
@@ -271,8 +237,7 @@ public class NetworkGraphGui extends JFrame {
             super.paintComponent(g);
             Graphics2D g2 = (Graphics2D) g;
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            
-            // Draw edges
+
             long currentTime = System.currentTimeMillis();
             for (Map.Entry<Integer, Set<Integer>> entry : edges.entrySet()) {
                 int fromNode = entry.getKey();
@@ -282,26 +247,22 @@ public class NetworkGraphGui extends JFrame {
                 for (int toNode : entry.getValue()) {
                     NodePosition toPos = nodes.get(toNode);
                     if (toPos == null || toNode < fromNode) continue; // Draw each edge once
-                    
-                    // Check if this edge is flashing
+
                     EdgeKey edge = new EdgeKey(Math.min(fromNode, toNode), Math.max(fromNode, toNode));
                     Long flashStartTime = flashingEdges.get(edge);
                     
                     if (flashStartTime != null && (currentTime - flashStartTime) < ANIMATION_DURATION_MS) {
-                        // Calculate animation progress (0.0 to 1.0)
                         double progress = (double)(currentTime - flashStartTime) / ANIMATION_DURATION_MS;
-                        // Create pulsing effect (bright to dim)
+
                         int alpha = (int)(255 * (1.0 - Math.abs(progress - 0.5) * 2));
                         alpha = Math.max(50, Math.min(255, alpha));
-                        
-                        // Draw flashing edge in orange with varying opacity
+
                         g2.setColor(new Color(COLOR_FLASHING_EDGE.getRed(), 
                                             COLOR_FLASHING_EDGE.getGreen(), 
                                             COLOR_FLASHING_EDGE.getBlue(), 
                                             alpha));
                         g2.setStroke(new BasicStroke(3.0f)); // Thicker line for flashing edges
                     } else {
-                        // Normal edge
                         g2.setColor(Color.GRAY);
                         g2.setStroke(new BasicStroke(1.0f));
                     }
@@ -309,13 +270,11 @@ public class NetworkGraphGui extends JFrame {
                     g2.draw(new Line2D.Double(fromPos.x, fromPos.y, toPos.x, toPos.y));
                 }
             }
-            
-            // Draw nodes
+
             for (Map.Entry<Integer, NodePosition> entry : nodes.entrySet()) {
                 int nodeId = entry.getKey();
                 NodePosition pos = entry.getValue();
-                
-                // Determine color
+
                 Color nodeColor;
                 if (sourceNodes.containsKey(nodeId)) {
                     nodeColor = COLOR_SOURCE;
@@ -324,19 +283,16 @@ public class NetworkGraphGui extends JFrame {
                 } else {
                     nodeColor = COLOR_SUSCEPTIBLE;
                 }
-                
-                // Draw node
+
                 g2.setColor(nodeColor);
                 g2.fill(new Ellipse2D.Double(pos.x - NODE_RADIUS, pos.y - NODE_RADIUS, 
                                              NODE_RADIUS * 2, NODE_RADIUS * 2));
-                
-                // Draw border
+
                 g2.setColor(Color.BLACK);
                 g2.setStroke(new BasicStroke(2.0f));
                 g2.draw(new Ellipse2D.Double(pos.x - NODE_RADIUS, pos.y - NODE_RADIUS, 
                                              NODE_RADIUS * 2, NODE_RADIUS * 2));
-                
-                // Draw node ID
+
                 g2.setColor(Color.BLACK);
                 g2.setFont(new Font("Arial", Font.BOLD, 10));
                 String label = String.valueOf(nodeId);
@@ -345,8 +301,7 @@ public class NetworkGraphGui extends JFrame {
                 int labelHeight = fm.getHeight();
                 g2.drawString(label, pos.x - labelWidth / 2, pos.y + labelHeight / 4);
             }
-            
-            // Draw legend
+
             drawLegend(g2);
         }
         
@@ -357,22 +312,19 @@ public class NetworkGraphGui extends JFrame {
             int spacing = 25;
             
             g2.setFont(new Font("Arial", Font.PLAIN, 12));
-            
-            // Susceptible
+
             g2.setColor(COLOR_SUSCEPTIBLE);
             g2.fillRect(x, y, boxSize, boxSize);
             g2.setColor(Color.BLACK);
             g2.drawRect(x, y, boxSize, boxSize);
             g2.drawString("Susceptible", x + boxSize + 5, y + 12);
-            
-            // Infected
+
             g2.setColor(COLOR_INFECTED);
             g2.fillRect(x, y + spacing, boxSize, boxSize);
             g2.setColor(Color.BLACK);
             g2.drawRect(x, y + spacing, boxSize, boxSize);
             g2.drawString("Infected", x + boxSize + 5, y + spacing + 12);
-            
-            // Source
+
             g2.setColor(COLOR_SOURCE);
             g2.fillRect(x, y + spacing * 2, boxSize, boxSize);
             g2.setColor(Color.BLACK);
@@ -402,10 +354,7 @@ public class NetworkGraphGui extends JFrame {
             statusLabel.setText(info.toString());
         }
     }
-    
-    /**
-     * Represents a node's position on the canvas
-     */
+
     private static class NodePosition {
         int x, y;
         
@@ -414,10 +363,7 @@ public class NetworkGraphGui extends JFrame {
             this.y = y;
         }
     }
-    
-    /**
-     * Represents an edge key (normalized: from < to)
-     */
+
     private static class EdgeKey {
         final int from;
         final int to;

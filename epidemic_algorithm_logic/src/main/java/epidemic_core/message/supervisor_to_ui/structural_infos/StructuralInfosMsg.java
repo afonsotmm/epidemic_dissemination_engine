@@ -25,10 +25,6 @@ public class StructuralInfosMsg {
     @JsonProperty("nodes")
     private final List<NodeInfo> nodes;
 
-    /**
-     * Structural information of a single node (id, list of neighbors,
-     * and an optional subject if the node is a source node)
-     */
     public static class NodeInfo {
         private final Integer id;
         private final List<Integer> neighbors;

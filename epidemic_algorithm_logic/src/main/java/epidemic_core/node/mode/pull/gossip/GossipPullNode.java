@@ -13,9 +13,6 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
-// Abstract base class for Gossip Pull protocol nodes.
-// Provides common structure for BlindCoinPullNode, FeedbackCoinPullNode.
-
 public abstract class GossipPullNode extends GossipNode {
 
     public static final double RUNNING_INTERVAL = 50; // milliseconds
@@ -31,7 +28,6 @@ public abstract class GossipPullNode extends GossipNode {
     protected BlockingQueue<String> requestMsgs;
     protected BlockingQueue<String> startRoundMsgs;
 
-    // Constructor (uses default UdpCommunication)
     public GossipPullNode(Integer id,
                          List<Integer> neighbours,
                          String assignedSubjectAsSource,
@@ -41,7 +37,6 @@ public abstract class GossipPullNode extends GossipNode {
         this(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress, null);
     }
 
-    // Constructor with optional Communication (used by DistributedNodeStub)
     public GossipPullNode(Integer id,
                          List<Integer> neighbours,
                          String assignedSubjectAsSource,
@@ -61,8 +56,6 @@ public abstract class GossipPullNode extends GossipNode {
         this.dispatcher = new Dispatcher(msgsQueue, replyMsgs, requestMsgs, startRoundMsgs);
     }
 
-    // Worker must be set by subclasses (e.g., BlindCoinPullWorker, FeedbackCoinPullWorker)
-
     // ===========================================================
     //                        RUNNER
     // ===========================================================
@@ -73,7 +66,7 @@ public abstract class GossipPullNode extends GossipNode {
     }
     
     public void stopRunning() {
-        stop(); // Set isRunning flag to false
+        stop();
         listener.stopListening();
         dispatcher.stopDispatching();
     }

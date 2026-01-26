@@ -57,23 +57,16 @@ public class NetworkEmulator {
         networkStructureManager = new NetworkStructureManager(adjMap, sourceNodes, N);
 
         // ========== RUN ==========
-        // Create DistributedNodeStub for each node (they start in WAVING mode)
-        // Nodes will send HelloMsg and wait for StartNodeMsg from supervisor
-        // Use CountDownLatch to wait for all node stubs to be created
         CountDownLatch creationLatch = new CountDownLatch(N);
         
         for(int id = 0; id < N; id++){
             final int nodeId = id;
             Address nodeAddress = nodeIdToAddressTable.get(nodeId);
-            
-            // Create DistributedNodeStub in a separate virtual thread with delay to avoid socket conflicts
+
             Thread.startVirtualThread(() -> {
                 try {
-                    // Small delay to avoid socket creation conflicts
-                    Thread.sleep(nodeId * 10); // 10ms delay between each node
-                    
-                    // Create DistributedNodeStub - node starts in WAVING mode
-                    // It will send HelloMsg via UDP broadcast and wait for StartNodeMsg
+                    Thread.sleep(nodeId * 10);
+
                     DistributedNodeStub stub = new DistributedNodeStub(nodeAddress.getIp(), nodeAddress.getPort());
                     nodeStubs.put(nodeId, stub);
                     
@@ -83,12 +76,11 @@ public class NetworkEmulator {
                 } catch (Exception e) {
                     System.err.println("Error creating DistributedNodeStub for node " + nodeId + ": " + e.getMessage());
                     e.printStackTrace();
-                    creationLatch.countDown(); // Still count down to avoid blocking
+                    creationLatch.countDown();
                 }
             });
         }
-        
-        // Wait for all node stubs to be created before returning
+
         try {
             creationLatch.await();
             System.out.println("All " + N + " node stubs created successfully (in WAVING mode)");
@@ -98,10 +90,7 @@ public class NetworkEmulator {
         }
     }
     
-    /**
-     * Generate subscribed topics based on all sources
-     * Each node is interested in all subjects published by sources (subject + sourceId)
-     */
+    // Generate subscribed topics based on all sources
     private List<MessageTopic> generateSubscribedTopics() {
         List<MessageTopic> topics = new ArrayList<>();
         Set<Integer> sourceNodesId = networkStructureManager.getSourceNodesId();
@@ -118,10 +107,7 @@ public class NetworkEmulator {
         return topics;
     }
 
-    // Note: Nodes are now created by DistributedNodeStub after receiving StartNodeMsg
-    // The NetworkEmulator only creates the stubs in WAVING mode
-    
-    // Stop all node stubs
+    // Stop all nodes
     public void stopNetwork() {
         for (Map.Entry<Integer, DistributedNodeStub> entry : nodeStubs.entrySet()) {
             DistributedNodeStub stub = entry.getValue();
@@ -137,28 +123,18 @@ public class NetworkEmulator {
         }
     }
 
-    public Address getSupervisorAddr() {
-        return supervisorAddr;
-    }
-    
-    // Get all node addresses
-    public Map<Integer, Address> getNodeAddresses() {
-        return nodeIdToAddressTable != null ? nodeIdToAddressTable.getAll() : new HashMap<>();
-    }
+    public Address getSupervisorAddr() { return supervisorAddr;}
 
-    // Get structural information matrix
+    public Map<Integer, Address> getNodeAddresses() {return nodeIdToAddressTable != null ? nodeIdToAddressTable.getAll() : new HashMap<>();}
+
     public supervisor.network_emulation.neighbors_and_subject.StructuralInfosMatrix getStructuralInfosMatrix() {
         return networkStructureManager != null ? networkStructureManager.getStructuralInfosMatrix() : null;
     }
-    
-    // Get NetworkStructureManager (for accessing source nodes info)
+
     public NetworkStructureManager getNetworkStructureManager() {
         return networkStructureManager;
     }
-    
-    /**
-     * Get all node stubs map (for direct access)
-     */
+
     public Map<Integer, DistributedNodeStub> getNodeStubs() {
         return nodeStubs;
     }

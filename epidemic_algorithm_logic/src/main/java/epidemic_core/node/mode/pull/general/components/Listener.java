@@ -8,11 +8,11 @@ import java.util.concurrent.BlockingQueue;
 public class Listener {
 
     private BlockingQueue<String> msgsQueue;
-    private Node node; // Keep reference to Node to get Communication dynamically
+    private Node node;
     private volatile boolean running;
 
     public Listener(Node node, BlockingQueue<String> msgsQueue) {
-        this.node = node; // Keep reference to Node (Communication may be replaced by DistributedNodeStub)
+        this.node = node;
         this.msgsQueue = msgsQueue;
 
         running = true;
@@ -20,7 +20,6 @@ public class Listener {
 
     public void listeningLoop() {
         while(running) {
-            // Get Communication dynamically from Node (may be replaced by DistributedNodeStub)
             Communication communication = node.getCommunication();
             String receivedMsg = communication.receiveMessage();
             if (receivedMsg != null) {

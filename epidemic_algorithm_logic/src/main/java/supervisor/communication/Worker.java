@@ -51,9 +51,7 @@ public class Worker {
                 generalFsm.setNewState(CommsStates.IDLE);
                 generalFsm.setState();
             }
-            // Process node messages if no UI message
             else {
-                // Process ALL available node messages in batch
                 int processedCount = 0;
                 String nodeMsg;
                 while ((nodeMsg = nodeQueue.poll()) != null) {
@@ -68,7 +66,6 @@ public class Worker {
                 }
                 
                 if (processedCount > 0) {
-                    // Return to IDLE after processing all node messages
                     generalFsm.setNewState(CommsStates.IDLE);
                     generalFsm.setState();
                 }
@@ -94,8 +91,7 @@ public class Worker {
             if (NodeToSupervisorMessageType.infection_update.toString().equals(messageType) &&
                 Direction.node_to_supervisor.toString().equals(direction)) {
                 InfectionUpdateMsg nodeMsg = InfectionUpdateMsg.decodeMessage(msg);  // Decode InfectionUpdateMsg from node
-                
-                // Record in local GUI
+
                 supervisor.ui.SupervisorGui gui = supervisor.getGui();
                 if (gui == null || nodeMsg.getTimestamp() == null) {
                     return;
@@ -109,7 +105,7 @@ public class Worker {
                     nodeMsg.getTimestamp().intValue(),
                     nodeMsg.getData()
                 );
-                
+
                 // Create InfectionUpdateMsg for external UI
                 epidemic_core.message.supervisor_to_ui.infection_update.InfectionUpdateMsg uiMsg = 
                     new epidemic_core.message.supervisor_to_ui.infection_update.InfectionUpdateMsg(
@@ -131,8 +127,7 @@ public class Worker {
                        Direction.node_to_supervisor.toString().equals(direction)) {
                 
                 RemotionUpdateMsg nodeMsg = RemotionUpdateMsg.decodeMessage(msg); // Decode RemotionUpdateMsg from node
-                
-                // Record in local GUI
+
                 supervisor.ui.SupervisorGui gui = supervisor.getGui();
                 if (gui != null && nodeMsg.getTimestamp() != null) {
                     gui.recordRemotion(

@@ -28,38 +28,27 @@ public class TcpCommunication implements Communication {
         this.isRunning = true;
 
         try {
-            // Bind to specific IP address to allow multiple sockets on same port with
-            // different IPs
-            // Similar to UdpCommunication - bind to specific InetAddress instead of 0.0.0.0
             java.net.InetAddress bindAddress = java.net.InetAddress.getByName(myAddress.getIp());
-            // ServerSocket(port, backlog, bindAddress) - backlog 0 uses system default
             this.serverSocket = new ServerSocket(myAddress.getPort(), 0, bindAddress);
             System.out.println("TCP Server listening on " + myAddress.getIp() + ":" + myAddress.getPort());
 
-            // Start thread to accept connections
             serverThread = Thread.startVirtualThread(this::acceptConnections);
         } catch (IOException e) {
             System.err.println("Error creating TCP server socket on " + myAddress.getIp() + ":" + myAddress.getPort()
                     + ": " + e.getMessage());
-            // Don't print full stack trace for "Address already in use" - it's expected
-            // with many nodes if IP is not properly bound
+
             if (!e.getMessage().contains("Address already in use") && !e.getMessage().contains("already in use")) {
                 e.printStackTrace();
             }
         }
     }
 
-    /**
-     * Accept incoming TCP connections and handle them
-     */
     private void acceptConnections() {
         while (isRunning && serverSocket != null && !serverSocket.isClosed()) {
             try {
-                // Accept a new connection
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("TCP connection accepted from " + clientSocket.getRemoteSocketAddress());
 
-                // Handle this connection in a separate thread
                 Thread.startVirtualThread(() -> handleClientConnection(clientSocket));
             } catch (IOException e) {
                 if (isRunning) {
@@ -70,27 +59,20 @@ public class TcpCommunication implements Communication {
         }
     }
 
-    /**
-     * Handle a client connection - read messages and put them in the queue
-     */
     private void handleClientConnection(Socket socket) {
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))) {
 
             String line;
 
-            // Read messages line by line (JSON messages are single-line)
             while ((line = reader.readLine()) != null && isRunning) {
                 if (line.trim().isEmpty()) {
                     continue; // Skip empty lines
                 }
 
-                // Trim the line to remove any whitespace
                 String message = line.trim();
 
-                // Check if we have a complete JSON message
                 if (message.startsWith("{") && message.endsWith("}")) {
-                    // Complete JSON message received
                     receivedMessages.offer(message);
                     System.out.println("TCP message received from " + socket.getRemoteSocketAddress());
                 } else {
@@ -98,7 +80,6 @@ public class TcpCommunication implements Communication {
                 }
             }
         } catch (SocketException e) {
-            // Connection closed - this is normal
             if (isRunning) {
                 System.out.println("TCP connection closed: " + socket.getRemoteSocketAddress());
             }
@@ -122,14 +103,10 @@ public class TcpCommunication implements Communication {
     public void sendMessage(Address destination, String message) {
         Socket socket = null;
         try {
-            // Create a new socket connection for each message (TCP is connection-oriented)
             socket = new Socket();
             socket.setSoTimeout(5000); // Read timeout
-            socket.connect(new java.net.InetSocketAddress(destination.getIp(), destination.getPort()), 2000); // 2s
-                                                                                                              // Connection
-                                                                                                              // timeout
+            socket.connect(new java.net.InetSocketAddress(destination.getIp(), destination.getPort()), 2000);
 
-            // Send message
             PrintWriter writer = new PrintWriter(
                     new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8),
                     true);
@@ -137,14 +114,9 @@ public class TcpCommunication implements Communication {
             writer.println(message);
             writer.flush();
 
-            // Success - message sent (commented out to reduce log spam)
-            // System.out.println("TCP message sent to " + destination.getIp() + ":" +
-            // destination.getPort());
         } catch (java.net.ConnectException e) {
-            // Connection refused - log it now to debug node connectivity
             System.err.println("TCP Connection refused to " + destination.getIp() + ":" + destination.getPort());
         } catch (IOException e) {
-            // Other IO errors - log but don't print full stack trace
             System.err.println("Error sending TCP message to " + destination.getIp() + ":" + destination.getPort()
                     + ": " + e.getMessage());
         } finally {
@@ -152,7 +124,6 @@ public class TcpCommunication implements Communication {
                 try {
                     socket.close();
                 } catch (IOException e) {
-                    // Ignore
                 }
             }
         }
@@ -169,7 +140,6 @@ public class TcpCommunication implements Communication {
         }
 
         try {
-            // Poll from queue (non-blocking)
             return receivedMessages.poll();
         } catch (Exception e) {
             System.err.println("[TcpCommunication] Error receiving TCP message: " + e.getMessage());

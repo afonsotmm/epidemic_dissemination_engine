@@ -34,61 +34,48 @@ import java.util.Random;
  */
 public class DistributedNodeStub {
 
-    private static final int HELLO_INTERVAL_MIN_MS = 1000; // Minimum 1 second
-    private static final int HELLO_INTERVAL_MAX_MS = 5000; // Maximum 5 seconds
-    private static final int SUPERVISOR_DISCOVERY_PORT = 7000; // Default supervisor UDP port for discovery
-    private static final Random random = new Random(); // Random generator for Hello interval
-    
+    private static final int HELLO_INTERVAL_MIN_MS = 1000;
+    private static final int HELLO_INTERVAL_MAX_MS = 5000;
+    private static final int SUPERVISOR_DISCOVERY_PORT = 7000;
+    private static final Random random = new Random();
+
     private enum State {
-        WAVING,  // Sending HelloMsg, waiting for StartNodeMsg
-        WORKING  // Node initialized and running
+        WAVING,
+        WORKING
     }
     
     private volatile State state = State.WAVING;
-    private final int helloIntervalMs; // Random interval between 1-5 seconds (unique per node instance)
+    private final int helloIntervalMs;
     private UdpCommunication udpCommunication;
-    private TcpCommunication tcpCommunication; // TCP server to receive StartNodeMsg and KillNodeMsg
-    private Address myUdpAddress; // This node's UDP address (IP + port) - for receiving HelloMsg
-    private Address myTcpAddress; // This node's TCP address (IP + portTCP) - sent in HelloMsg
-    private Node actualNode; // The actual Node instance created after StartNodeMsg
-    private Thread nodeThread; // Thread running the actual node
-    private Thread wavingThread; // Thread for sending HelloMsg periodically
-    private Thread tcpListeningThread; // Thread for listening TCP messages
-    
-    // Constructor: Initialize with minimal address information
-    // The node doesn't know its ID yet, only its address
-    // TCP port is UDP port + 1 (e.g., UDP 8000 -> TCP 8001)
+    private TcpCommunication tcpCommunication;
+    private Address myUdpAddress;
+    private Address myTcpAddress;
+    private Node actualNode;
+    private Thread nodeThread;
+    private Thread wavingThread;
+    private Thread tcpListeningThread;
+
     public DistributedNodeStub(String ip, int udpPort) {
-        // Generate random Hello interval between 1-5 seconds (unique per node instance)
         this.helloIntervalMs = HELLO_INTERVAL_MIN_MS + random.nextInt(HELLO_INTERVAL_MAX_MS - HELLO_INTERVAL_MIN_MS + 1);
         
         this.myUdpAddress = new Address(ip, udpPort);
-        int tcpPort = udpPort + 1; // TCP port is UDP port + 1
+        int tcpPort = udpPort + 1;
         this.myTcpAddress = new Address(ip, tcpPort);
         
         this.udpCommunication = new UdpCommunication();
         this.tcpCommunication = new TcpCommunication();
-        
-        // Setup UDP socket to listen (for broadcasting HelloMsg)
+
         udpCommunication.setupSocket(myUdpAddress);
-        
-        // Setup TCP socket to listen for StartNodeMsg and KillNodeMsg (on different port)
+
         tcpCommunication.setupSocket(myTcpAddress);
-        
-        // Start Waving mode
+
         startWaving();
     }
-    
-    /**
-     * Start Waving mode: Send HelloMsg via UDP broadcast with random intervals (1-5s)
-     */
+
     private void startWaving() {
         state = State.WAVING;
-        
-        // Start thread to send HelloMsg periodically
+
         wavingThread = Thread.startVirtualThread(() -> {
-            // Add random initial delay (0-5 seconds) to spread out the first HelloMsg from all nodes
-            // This prevents all nodes from sending their first HelloMsg simultaneously
             int initialDelayMs = random.nextInt(HELLO_INTERVAL_MAX_MS + 1);
             try {
                 Thread.sleep(initialDelayMs);
@@ -99,9 +86,6 @@ public class DistributedNodeStub {
             
             while (state == State.WAVING) {
                 try {
-                    // Create HelloMsg with both TCP and UDP addresses
-                    // TCP: for supervisor-to-node messages (StartNodeMsg, KillNodeMsg)
-                    // UDP: for node-to-node communication and StartRoundMsg
                     HelloMsg helloMsg = new HelloMsg(
                         epidemic_core.message.common.Direction.node_to_supervisor.toString(),
                         epidemic_core.message.node_to_supervisor.NodeToSupervisorMessageType.hello.toString(),
@@ -110,11 +94,9 @@ public class DistributedNodeStub {
                     );
                     
                     String encodedHello = helloMsg.encode();
-                    
-                    // Send via UDP broadcast to supervisor discovery port
+
                     ((UdpCommunication) udpCommunication).sendBroadcastMessage(SUPERVISOR_DISCOVERY_PORT, encodedHello);
-                    
-                    // Wait random interval (1-5 seconds) before next HelloMsg (unique per node)
+
                     Thread.sleep(helloIntervalMs);
                 } catch (IOException e) {
                     System.err.println("[DistributedNodeStub] Error encoding/sending HelloMsg: " + e.getMessage());
@@ -124,21 +106,13 @@ public class DistributedNodeStub {
                 }
             }
         });
-        
-        // Start thread to listen for UDP messages (KillNodeMsg)
+
         Thread.startVirtualThread(this::udpListeningLoop);
-        
-        // Start thread to listen for TCP messages (StartNodeMsg - large message)
+
         tcpListeningThread = Thread.startVirtualThread(this::tcpListeningLoop);
     }
-    
-    /**
-     * UDP listening loop: Not used for receiving messages from supervisor
-     * (StartNodeMsg and KillNodeMsg are received via TCP)
-     */
+
     private void udpListeningLoop() {
-        // UDP is only used for sending HelloMsg broadcast
-        // Supervisor messages (StartNodeMsg, KillNodeMsg) come via TCP
         while (true) {
             try {
                 Thread.sleep(1000); // Just keep thread alive
@@ -148,16 +122,13 @@ public class DistributedNodeStub {
             }
         }
     }
-    
-    /**
-     * TCP listening loop: Process StartNodeMsg and KillNodeMsg (both via TCP)
-     */
+
     private void tcpListeningLoop() {
         while (state == State.WAVING || state == State.WORKING) {
             String receivedMessage = tcpCommunication.receiveMessage();
             if (receivedMessage == null) {
                 try {
-                    Thread.sleep(10); // Small sleep to avoid busy-waiting
+                    Thread.sleep(10);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
@@ -178,10 +149,7 @@ public class DistributedNodeStub {
             }
         }
     }
-    
-    /**
-     * Handle StartNodeMsg: Initialize the actual Node and switch to WORKING state
-     */
+
     private void handleStartNodeMsg(StartNodeMsg msg) {
         try {
             System.out.println("[DistributedNodeStub] Received StartNodeMsg for node ID: " + msg.getNodeId());
@@ -191,8 +159,7 @@ public class DistributedNodeStub {
             if (wavingThread != null) {
                 wavingThread.interrupt();
             }
-            
-            // Parse StartNodeMsg fields
+
             int nodeId = msg.getNodeId();
             Address supervisorTcpAddress = msg.getSupervisorTcpAddressAsAddress();
             java.util.List<Integer> neighbors = msg.getNeighbors();
@@ -202,21 +169,16 @@ public class DistributedNodeStub {
             String mode = msg.getMode();
             String protocol = msg.getProtocol();
             Double k = msg.getK();
-            
-            // Create the actual Node based on mode and protocol
+
             Node node = createNode(nodeId, neighbors, assignedSubjectAsSource, 
                                   nodeToAddressTable, subscribedTopics, supervisorTcpAddress,
                                   mode, protocol, k);
             
             this.actualNode = node;
-            
-            // Configure TCP communication for supervisor (for InfectionUpdateMsg and RemotionUpdateMsg)
-            // supervisorAddress is the TCP address of supervisor in distributed mode
+
             TcpCommunication tcpComm = new TcpCommunication();
             node.supervisorTcpCommunication = tcpComm;
-            // Note: TcpCommunication doesn't need setupSocket for client mode - it creates socket per message
-            
-            // Start the node (it will start its worker threads)
+
             if (node instanceof AntiEntropyPullNode n) n.startRunning();
             else if (node instanceof AntiEntropyPushNode n) n.startRunning();
             else if (node instanceof AntiEntropyPushPullNode n) n.startRunning();
@@ -229,15 +191,12 @@ public class DistributedNodeStub {
         } catch (Exception e) {
             System.err.println("[DistributedNodeStub] Error initializing node from StartNodeMsg: " + e.getMessage());
             e.printStackTrace();
-            // Return to WAVING state on error
+
             state = State.WAVING;
             startWaving();
         }
     }
-    
-    /**
-     * Create the actual Node instance based on mode and protocol
-     */
+
     private Node createNode(int nodeId,
                            java.util.List<Integer> neighbors,
                            String assignedSubjectAsSource,
@@ -290,14 +249,10 @@ public class DistributedNodeStub {
                 throw new IllegalArgumentException("Invalid node mode: " + mode);
         }
     }
-    
-    /**
-     * Handle KillNodeMsg: Stop the node and return to WAVING state
-     */
+
     private void handleKillNodeMsg() {
         System.out.println("[DistributedNodeStub] Received KillNodeMsg - returning to WAVING state");
-        
-        // Stop the actual node
+
         if (actualNode != null) {
             actualNode.stop();
             actualNode = null;
@@ -307,28 +262,18 @@ public class DistributedNodeStub {
             nodeThread.interrupt();
             nodeThread = null;
         }
-        
-        // Return to WAVING state
+
         startWaving();
     }
-    
-    /**
-     * Get the actual Node instance (null if still in WAVING state)
-     */
+
     public Node getActualNode() {
         return actualNode;
     }
-    
-    /**
-     * Check if node is in WORKING state
-     */
+
     public boolean isWorking() {
         return state == State.WORKING;
     }
-    
-    /**
-     * Stop the stub and clean up resources
-     */
+
     public void stop() {
         if (wavingThread != null) {
             wavingThread.interrupt();
@@ -346,21 +291,11 @@ public class DistributedNodeStub {
             tcpCommunication.closeSocket();
         }
     }
-    
-    /**
-     * Main method for distributed deployment mode
-     * Each node runs independently with its own IP and port
-     * 
-     * Usage: java DistributedNodeStub <ip> <port>
-     * Example: java DistributedNodeStub 127.0.0.1 8000
-     * 
-     * If no arguments provided, uses default: 127.0.0.1:8000
-     */
+
     public static void main(String[] args) {
         String ip;
         int port;
-        
-        // Parse command line arguments
+
         if (args.length >= 2) {
             ip = args[0];
             try {
@@ -370,7 +305,6 @@ public class DistributedNodeStub {
                 port = 8000;
             }
         } else {
-            // Default values
             ip = "127.0.0.1";
             port = 8000;
             System.out.println("No arguments provided. Using default: " + ip + ":" + port);
@@ -383,11 +317,9 @@ public class DistributedNodeStub {
         System.out.println("  Port: " + port);
         System.out.println("  Mode: WAVING (waiting for StartNodeMsg from supervisor)");
         System.out.println("================================================");
-        
-        // Create DistributedNodeStub - it will start in WAVING mode
+
         DistributedNodeStub stub = new DistributedNodeStub(ip, port);
-        
-        // Keep the main thread alive
+
         try {
             Thread.currentThread().join();
         } catch (InterruptedException e) {

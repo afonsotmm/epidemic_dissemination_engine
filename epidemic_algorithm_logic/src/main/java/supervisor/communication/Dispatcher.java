@@ -30,15 +30,12 @@ public class Dispatcher {
     public void dispatchingLoop(){
         while(true) {
             try {
-                // Check TCP queue first (UI messages have priority) - non-blocking
                 String consumedMsg = tcpMsgsQueue.poll();
-                
-                // If no TCP message, check UDP queue - non-blocking
+
                 if (consumedMsg == null) {
                     consumedMsg = udpMsgsQueue.poll();
                 }
-                
-                // If we have a message, process it
+
                 if (consumedMsg != null) {
                     String direction = getDirection(consumedMsg);
                     String messageType = getMessageType(consumedMsg);
@@ -55,7 +52,6 @@ public class Dispatcher {
                         System.out.println("[Dispatcher] WARNING: Message not routed! direction=" + direction + ", messageType=" + messageType);
                     }
                 } else {
-                    // No messages in either queue - small sleep to avoid busy-waiting
                     Thread.sleep(1);
                 }
 

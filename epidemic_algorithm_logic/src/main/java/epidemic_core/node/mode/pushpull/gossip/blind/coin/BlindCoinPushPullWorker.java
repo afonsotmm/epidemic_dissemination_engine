@@ -23,10 +23,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 
-// Worker for Blind Coin PushPull protocol.
-// After sending a pushpull request, tosses a coin with probability 1/k.
-// If successful, the node stops making requests and spreading that message.
-// If the message changes (new timestamp), it can propagate normally.
 public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull.general.components.WorkerInterface {
 
     private BlindCoinPushPullNode node;
@@ -64,8 +60,6 @@ public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull
         checkForStartSignal();
         pushPullFsmHandle();
         replyUpdateFsmHandle();
-        // Print node state removed - too verbose
-        // node.printNodeState();
     }
 
     public void workingLoop() {
@@ -94,10 +88,8 @@ public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull
     //                  PUSHPULL FSM HANDLE                    //
     // ======================================================= //
     public void sendPushPullRequest() {
-        // Get subscribed topics (interests)
         List<MessageTopic> subscribedTopics = node.getSubscribedTopics();
 
-        // Get a random neighbour and its address
         List<Integer> neighbours = node.getNeighbours();
         if (neighbours.isEmpty()) {
             System.err.println("[Node " + node.getId() + "] No neighbours to pushpull from");
@@ -110,10 +102,8 @@ public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull
 
         if (randNeighAdd != null) {
             for(MessageTopic topic: subscribedTopics){
-                // Check if we have a message for this specific topic (subject + sourceId)
                 StatusForMessage statusForMsg = node.getMessagebyTopic(topic);
-                
-                // if we have no message with a subscribed topic we send a "InitialRequestMsg"
+
                 if(statusForMsg == null){
                     InitialRequestMsg reqMsg = new InitialRequestMsg(
                         Direction.node_to_node.toString(),
@@ -127,16 +117,11 @@ public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull
                         System.err.println("Error encoding InitialRequestMsg: " + e.getMessage());
                         e.printStackTrace();
                     }
-                    // For InitialRequestMsg, we don't have a specific MessageId to remove, so no coin toss
                 } else {
-                    // We have a message for this topic, send RequestAndSpreadMsg with its MessageId
                     SpreadMsg storedMsg = statusForMsg.getMessage();
                     MessageId msgId = storedMsg.getId();
-                    
-                    // Check if this specific message (MessageId = topic + timestamp) has been removed (Blind Coin)
+
                     if (node.isMessageRemoved(msgId)) {
-                        // If removed, send InitialRequestMsg instead (act as if we don't have the message)
-                        // This allows the node to still receive updates if the message changes
                         InitialRequestMsg reqMsg = new InitialRequestMsg(
                             Direction.node_to_node.toString(),
                             NodeToNodeMessageType.initial_request.toString(),
@@ -169,9 +154,7 @@ public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull
                         System.err.println("Error encoding RequestAndSpreadMsg: " + e.getMessage());
                         e.printStackTrace();
                     }
-                    
-                    // After sending request+spread, toss coin with probability 1/k
-                    // If successful (coin == true), remove this specific message
+
                     if (GossipNode.tossCoin(k)) {
                         node.removeMessage(msgId);
                         if (node.isRunning()) {
@@ -248,33 +231,27 @@ public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull
     public void sendPushPullReply(String reqMsgStr) {
         try {
             Object decodedMsg = MessageDispatcher.decode(reqMsgStr);
-            
-            // Can receive RequestMsg, RequestAndSpreadMsg, or InitialRequestMsg
+
             MessageId reqMsgId = null;
             Integer neighId = null;
             
             if (decodedMsg instanceof InitialRequestMsg) {
-                // InitialRequestMsg: send ALL stored messages (no specific MessageId)
                 InitialRequestMsg initialRequestMsg = (InitialRequestMsg) decodedMsg;
                 neighId = initialRequestMsg.getOriginId();
                 
                 Address neighAddress = node.getNeighbourAddress(neighId);
                 if (neighAddress != null) {
-                    // For InitialRequestMsg, send ALL stored messages
-                    // But only send messages that are NOT removed
                     List<SpreadMsg> storedMessages = node.getAllStoredMessages();
                     for (SpreadMsg message : storedMessages) {
                         MessageId msgId = message.getId();
-                        // Only send if message is not removed
                         if (!node.isMessageRemoved(msgId)) {
-                            // Create new SpreadMsg with updated originId (this node is now the origin)
                             SpreadMsg forwardMsg = new SpreadMsg(
                                 epidemic_core.message.common.Direction.node_to_node.toString(),
                                 epidemic_core.message.node_to_node.NodeToNodeMessageType.spread.toString(),
                                 msgId.topic().subject(),
                                 msgId.topic().sourceId(),
                                 msgId.timestamp(),
-                                node.getId(), // Update originId to this node (who is replying)
+                                node.getId(),
                                 message.getData()
                             );
                             
@@ -290,7 +267,7 @@ public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull
                 } else {
                     System.err.println("Warning: Neighbour " + neighId + " address not found");
                 }
-                return; // Early return for InitialRequestMsg
+                return;
             } else if (decodedMsg instanceof RequestMsg) {
                 RequestMsg requestMsg = (RequestMsg) decodedMsg;
                 reqMsgId = requestMsg.getId();
@@ -299,7 +276,6 @@ public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull
                 RequestAndSpreadMsg requestAndSpreadMsg = (RequestAndSpreadMsg) decodedMsg;
                 reqMsgId = requestAndSpreadMsg.getId();
                 neighId = requestAndSpreadMsg.getOriginId();
-                // Note: The SPREAD part is already processed by the Dispatcher and FSM
             }
             
             if (neighId != null && reqMsgId != null) {
@@ -310,24 +286,20 @@ public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull
                     int reqSourceId = reqMsgId.topic().sourceId();
                     long reqTimestamp = reqMsgId.timestamp();
 
-                    // Check if we have this message (subject + sourceId)
                     if (node.hasMessage(reqSubject, reqSourceId)) {
-                        // Get the stored message
                         StatusForMessage statusForMsg = node.getMessagebySubjectAndSource(reqSubject, reqSourceId);
                         SpreadMsg storedMessage = statusForMsg.getMessage();
                         MessageId storedMsgId = storedMessage.getId();
                         long storedTimestamp = storedMsgId.timestamp();
 
-                        // Reply only if we have a more recent version AND it's not removed
                         if (storedTimestamp > reqTimestamp && !node.isMessageRemoved(storedMsgId)) {
-                            // Create new SpreadMsg with updated originId (this node is now the origin)
                             SpreadMsg forwardMsg = new SpreadMsg(
                                 epidemic_core.message.common.Direction.node_to_node.toString(),
                                 epidemic_core.message.node_to_node.NodeToNodeMessageType.spread.toString(),
                                 storedMsgId.topic().subject(),
                                 storedMsgId.topic().sourceId(),
                                 storedMsgId.timestamp(),
-                                node.getId(), // Update originId to this node (who is replying)
+                                node.getId(),
                                 storedMessage.getData()
                             );
                             
@@ -361,7 +333,6 @@ public class BlindCoinPushPullWorker implements epidemic_core.node.mode.pushpull
             String newMsg;
             while((newMsg = requestMsgs.poll()) != null) { newReqMsgs.add(newMsg); }
 
-            // Replying every request received
             for(String newReqMsgStr: newReqMsgs) {
                 sendPushPullReply(newReqMsgStr);
             }

@@ -63,8 +63,6 @@ public class FeedbackMsg {
         return id != null ? id.topic().subject() : null;
     }
 
-    // Removed @JsonProperty("sourceId") - sourceId is already in id.topic().sourceId()
-    // This getter is kept for programmatic access but not serialized
     @JsonIgnore
     public Integer getSourceId() {
         return id != null ? id.topic().sourceId() : null;

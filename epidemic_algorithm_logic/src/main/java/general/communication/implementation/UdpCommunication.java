@@ -17,22 +17,20 @@ public class UdpCommunication implements Communication {
     @Override
     public void setupSocket(Address myAddress) {
         try {
-            // Bind to specific IP address and port to allow multiple sockets on same port with different IPs
             InetAddress bindAddress = InetAddress.getByName(myAddress.getIp());
             this.socket = new DatagramSocket(myAddress.getPort(), bindAddress);
-            // UDP socket can block - we have a dedicated thread for it
+
             System.out.println("UDP Socket listening on " + myAddress.getIp() + ":" + myAddress.getPort());
         } catch (SocketException e) {
             System.err.println("Error creating UDP socket on " + myAddress.getIp() + ":" + myAddress.getPort() + ": " + e.getMessage());
-            // Don't print full stack trace for "Address already in use" - it's expected with many nodes
+
             if (!e.getMessage().contains("Address already in use")) {
                 e.printStackTrace();
             }
-            // Socket remains null, which will be checked in sendMessage/receiveMessage
+
         } catch (IOException e) {
             System.err.println("Error resolving IP address " + myAddress.getIp() + ": " + e.getMessage());
             e.printStackTrace();
-            // Socket remains null
         }
     }
     
@@ -43,15 +41,12 @@ public class UdpCommunication implements Communication {
     @Override
     public void sendMessage(Address destination, String message) {
         if (!isSocketReady()) {
-            // Silently fail - socket may not be ready yet or failed to initialize
             return;
         }
 
         try {
-            // Convert string to bytes
             byte[] messageBytes = message.getBytes();
-            
-            // Created an UDP packet with the destination address
+
             InetAddress destAddress = InetAddress.getByName(destination.getIp());
             DatagramPacket packet = new DatagramPacket(
                 messageBytes, 
@@ -59,8 +54,7 @@ public class UdpCommunication implements Communication {
                 destAddress, 
                 destination.getPort()
             );
-            
-            // Send packet
+
             socket.send(packet);
             System.out.println("UDP message sent to " + destination.getIp() + ":" + destination.getPort());
         } catch (IOException e) {
@@ -69,21 +63,16 @@ public class UdpCommunication implements Communication {
         }
     }
 
-    // Send message via UDP broadcast (to 255.255.255.255)
     public void sendBroadcastMessage(int port, String message) {
         if (!isSocketReady()) {
-            // Silently fail - socket may not be ready yet or failed to initialize
             return;
         }
 
         try {
-            // Enable broadcast mode
             socket.setBroadcast(true);
-            
-            // Convert string to bytes
+
             byte[] messageBytes = message.getBytes();
-            
-            // Create UDP packet with broadcast address
+
             InetAddress broadcastAddress = InetAddress.getByName("255.255.255.255");
             DatagramPacket packet = new DatagramPacket(
                 messageBytes, 
@@ -91,8 +80,7 @@ public class UdpCommunication implements Communication {
                 broadcastAddress, 
                 port
             );
-            
-            // Send packet
+
             socket.send(packet);
             System.out.println("UDP broadcast message sent to 255.255.255.255:" + port);
         } catch (IOException e) {
@@ -104,19 +92,15 @@ public class UdpCommunication implements Communication {
     @Override
     public String receiveMessage() {
         if (!isSocketReady()) {
-            // Return null if socket not ready - will be retried in next cycle
             return null;
         }
 
         try {
-            // Creation of a buffer to the received messages
             byte[] buffer = new byte[BUFFER_SIZE];
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-            
-            // Blocks here until it receives (now we have a dedicated thread for UDP)
+
             socket.receive(packet);
-            
-            // Extract the received message
+
             String receivedMessage = new String(packet.getData(), 0, packet.getLength());
             System.out.println("UDP message received from " + packet.getAddress().getHostAddress() + ":" + packet.getPort());
             

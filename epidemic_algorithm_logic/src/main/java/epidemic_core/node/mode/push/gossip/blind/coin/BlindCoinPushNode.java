@@ -15,9 +15,8 @@ import java.util.Map;
  */
 public class BlindCoinPushNode extends GossipPushNode {
 
-    private final double k; // Probability parameter: 1/k chance to stop spreading
+    private final double k;
 
-    // Constructor (uses default UdpCommunication)
     public BlindCoinPushNode(Integer id,
                             List<Integer> neighbours,
                             String assignedSubjectAsSource,
@@ -28,7 +27,6 @@ public class BlindCoinPushNode extends GossipPushNode {
         this(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress, k, null);
     }
 
-    // Constructor with optional Communication (used by DistributedNodeStub)
     public BlindCoinPushNode(Integer id,
                             List<Integer> neighbours,
                             String assignedSubjectAsSource,
@@ -39,8 +37,7 @@ public class BlindCoinPushNode extends GossipPushNode {
                             Communication existingCommunication) {
         super(id, neighbours, assignedSubjectAsSource, nodeIdToAddressTable, subscribedTopics, supervisorAddress, existingCommunication);
         this.k = k;
-        
-        // Set the worker to BlindCoinPushWorker
+
         this.worker = new BlindCoinPushWorker(this, pushMsgs, startRoundMsgs, k);
     }
 

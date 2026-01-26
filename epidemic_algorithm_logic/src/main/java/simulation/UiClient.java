@@ -23,8 +23,6 @@ import java.util.Map;
  * Then type "start" or "end" in the terminal to send messages.
  */
 public class UiClient {
-
-    // Default configuration
     private static String supervisorHost = "127.0.0.1";
     private static int supervisorPort = 7000;
     private static String uiHost = "127.0.0.2";
@@ -41,7 +39,6 @@ public class UiClient {
     private static volatile boolean isRunning = false;
 
     public static void main(String[] args) {
-        // Parse command line arguments
         if (args.length >= 1) {
             supervisorHost = args[0];
         }
@@ -51,21 +48,16 @@ public class UiClient {
         if (args.length >= 3) {
             uiPort = Integer.parseInt(args[2]);
         }
-        
-        // Initialize TCP server to receive messages from supervisor
+
         initializeTcpServer();
-        
-        // Start message processing thread
+
         Thread.startVirtualThread(UiClient::processMessages);
-        
-        // Create and show GUI
+
         graphGui = new NetworkGraphGui();
-        
-        // Set button callbacks
+
         graphGui.setStartCallback(UiClient::sendStartMessage);
         graphGui.setEndCallback(UiClient::sendEndMessage);
-        
-        // Handle window close
+
         graphGui.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         graphGui.addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
@@ -88,8 +80,7 @@ public class UiClient {
         System.out.println("Use the GUI buttons to start/end the network");
         System.out.println("================================================");
         System.out.println();
-        
-        // Keep main thread alive
+
         try {
             Thread.currentThread().join();
         } catch (InterruptedException e) {
@@ -118,7 +109,7 @@ public class UiClient {
                 if (message != null) {
                     processSupervisorMessage(message);
                 }
-                Thread.sleep(10); // Small delay to avoid busy-waiting
+                Thread.sleep(10);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
@@ -139,25 +130,20 @@ public class UiClient {
             
             if ("supervisor_to_ui".equals(direction)) {
                 if ("structural_infos".equals(messageType)) {
-                    // Process structural information (topology)
                     StructuralInfosMsg structuralMsg = StructuralInfosMsg.decodeMessage(jsonMessage);
                     if (graphGui != null) {
                         graphGui.updateTopology(structuralMsg);
                         System.out.println("Received structural information: " + structuralMsg.getNodes().size() + " nodes");
                     }
                 } else if ("infection_update".equals(messageType)) {
-                    // Process infection update
                     InfectionUpdateMsg infectionMsg = InfectionUpdateMsg.decodeMessage(jsonMessage);
                     if (graphGui != null) {
                         int updatedNodeId = infectionMsg.getUpdatedNodeId();
                         int infectingNodeId = infectionMsg.getInfectingNodeId();
                         int sourceId = infectionMsg.getSourceId() != null ? infectionMsg.getSourceId() : -1;
-                        
-                        // Update node infection status
+
                         graphGui.updateNodeInfection(updatedNodeId, true);
-                        
-                        // Flash the edge between the infecting node (who sent the message) and the updated node (who received it)
-                        // NOT the source node - the source is just the original creator of the message
+
                         graphGui.flashEdge(infectingNodeId, updatedNodeId);
                         
                         System.out.println("Node " + updatedNodeId + " infected by node " + infectingNodeId + 

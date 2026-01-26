@@ -30,18 +30,14 @@ public class Dispatcher {
         while(running){
             try {
                 String consumedMsg = receivedMsgsQueue.take();
-                
-                // Only process node_to_node messages
+
                 if (MessageDispatcher.isRequestAndSpread(consumedMsg)) {
-                    // Put the full message in requestMsgs for reply processing
                     requestMsgs.put(consumedMsg);
-                    
-                    // Also extract the SPREAD part and put it in replyMsgs for update processing
+
                     try {
                         Object decodedMsg = MessageDispatcher.decode(consumedMsg);
                         if (decodedMsg instanceof RequestAndSpreadMsg) {
                             RequestAndSpreadMsg requestAndSpreadMsg = (RequestAndSpreadMsg) decodedMsg;
-                            // Create a SpreadMsg from the RequestAndSpreadMsg
                             SpreadMsg spreadPart = new SpreadMsg(
                                 Direction.node_to_node.toString(),
                                 NodeToNodeMessageType.spread.toString(),
@@ -63,7 +59,6 @@ public class Dispatcher {
                         System.err.println("[Dispatcher] Error extracting SPREAD from RequestAndSpreadMsg: " + e.getMessage());
                     }
                 } else if (MessageDispatcher.isRequest(consumedMsg) || MessageDispatcher.isInitialRequest(consumedMsg)) {
-                    // REQUEST or INITIAL_REQUEST (when node has no messages to send or wants to discover)
                     requestMsgs.put(consumedMsg);
                 } else if (MessageDispatcher.isSpread(consumedMsg)) {
                     replyMsgs.put(consumedMsg);

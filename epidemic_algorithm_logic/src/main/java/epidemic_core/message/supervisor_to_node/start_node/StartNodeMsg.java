@@ -27,14 +27,14 @@ public class StartNodeMsg {
 
     private final StartNodeHeader header;
     private final int nodeId;
-    private final String supervisorTcpAddress; // IP:port of supervisor's TCP server
+    private final String supervisorTcpAddress;
     private final List<Integer> neighbors;
-    private final Map<String, String> nodeToAddressTable; // Map<nodeId as string, "ip:port">
+    private final Map<String, String> nodeToAddressTable;     // Map<nodeId as string, "ip:port">
     private final List<Map<String, Object>> subscribedTopics; // List of {subject, sourceId}
-    private final String assignedSubjectAsSource; // null if not a source node
-    private final String mode; // "push", "pull", "pushpull"
-    private final String protocol; // "anti_entropy", "blind_coin", "feedback_coin"
-    private final Double k; // For gossip protocols (null if not gossip)
+    private final String assignedSubjectAsSource;
+    private final String mode;
+    private final String protocol;
+    private final Double k;
 
     @JsonCreator
     public StartNodeMsg(@JsonProperty("direction") String direction,
@@ -86,8 +86,7 @@ public class StartNodeMsg {
     @JsonProperty("supervisorTcpAddress")
     public String getSupervisorTcpAddress() { return supervisorTcpAddress; }
 
-    // Helper to parse supervisor TCP address string to Address object
-    @JsonIgnore // Don't serialize this - it's a helper method, not a JSON field
+    @JsonIgnore
     public Address getSupervisorTcpAddressAsAddress() {
         return supervisorTcpAddress != null ? Address.parse(supervisorTcpAddress) : null;
     }
@@ -98,8 +97,7 @@ public class StartNodeMsg {
     @JsonProperty("nodeToAddressTable")
     public Map<String, String> getNodeToAddressTable() { return new HashMap<>(nodeToAddressTable); }
 
-    // Helper to convert nodeToAddressTable to Map<Integer, Address>
-    @JsonIgnore // Don't serialize this - it's a helper method, not a JSON field
+    @JsonIgnore
     public Map<Integer, Address> getNodeToAddressTableAsMap() {
         Map<Integer, Address> result = new HashMap<>();
         for (Map.Entry<String, String> entry : nodeToAddressTable.entrySet()) {
@@ -113,8 +111,7 @@ public class StartNodeMsg {
     @JsonProperty("subscribedTopics")
     public List<Map<String, Object>> getSubscribedTopics() { return new ArrayList<>(subscribedTopics); }
 
-    // Helper to convert subscribedTopics to List<MessageTopic>
-    @JsonIgnore // Don't serialize this - it's a helper method, not a JSON field
+    @JsonIgnore
     public List<MessageTopic> getSubscribedTopicsAsList() {
         List<MessageTopic> result = new ArrayList<>();
         for (Map<String, Object> topicMap : subscribedTopics) {
